@@ -6,3 +6,4 @@ kaleido>=0.2.1
 flask>=2.0.0
 mplfinance>=0.12.0
 matplotlib>=3.5.0
+gunicorn>=20.1.0

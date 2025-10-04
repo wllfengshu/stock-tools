@@ -297,17 +297,6 @@
                             </select>
                         </div>
                         
-                        <div class="form-group">
-                            <label for="monthsSelect">时间范围</label>
-                            <select id="monthsSelect" name="months">
-                                <option value="1">1个月</option>
-                                <option value="3">3个月</option>
-                                <option value="6" selected>6个月</option>
-                                <option value="12">12个月</option>
-                                <option value="18">18个月</option>
-                                <option value="24">24个月</option>
-                            </select>
-                        </div>
                     </div>
                     
                     <div class="form-group">
@@ -366,7 +355,7 @@
             
             const formData = new FormData(form);
             const data = {
-                months: parseInt(formData.get('months')),
+                months: 6, // 默认6个月
                 stock_code: formData.get('stock_code'),
                 stock_name: document.getElementById('stockSelect').selectedOptions[0].text
             };
@@ -420,7 +409,7 @@
                     ✅ 分析完成！K线图已生成
                 </div>
                 <p><strong>股票:</strong> ${result.stock_name}</p>
-                <p><strong>时间范围:</strong> ${result.months}个月</p>
+                <p><strong>提示:</strong> 可以通过拖拽图表来调整时间范围</p>
             `;
             resultSection.style.display = 'block';
             
@@ -646,12 +635,18 @@
                     <div class="value">¥${status.current_price.toFixed(2)}</div>
                 </div>
                 <div class="status-item">
+                    <div class="label">股价涨跌</div>
+                    <div class="value" style="color: ${status.stock_change_rate >= 0 ? '#dc3545' : '#28a745'}">
+                        ${(status.stock_change_rate * 100).toFixed(2)}%
+                    </div>
+                </div>
+                <div class="status-item">
                     <div class="label">国际金价</div>
                     <div class="value">$${status.gold_price.toFixed(2)}</div>
                 </div>
                 <div class="status-item">
                     <div class="label">金价涨跌</div>
-                    <div class="value" style="color: ${status.gold_change_rate >= 0 ? '#28a745' : '#dc3545'}">
+                    <div class="value" style="color: ${status.gold_change_rate >= 0 ? '#dc3545' : '#28a745'}">
                         ${(status.gold_change_rate * 100).toFixed(2)}%
                     </div>
                 </div>

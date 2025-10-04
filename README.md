@@ -45,7 +45,6 @@ gold/
 ├── advanced_interactive_system_professional.py # 专业K线图系统
 ├── web_server.py                 # Web服务器
 ├── start_system.py               # 启动脚本
-├── config.py                     # 配置文件
 ├── requirements.txt              # 依赖包
 └── README.md                    # 说明文档
 ```
@@ -59,14 +58,37 @@ pip install -r requirements.txt
 
 ### 运行系统
 
-#### 方法一：Web界面模式（推荐）
+#### 方法一：智能启动模式（推荐）
 ```bash
-# 启动Web界面
+# 自动检测环境并选择最佳服务器
 python start_system.py
+```
 
-# 或直接启动Web服务器
+#### 方法二：生产环境模式
+```bash
+# 使用Gunicorn生产服务器
+python start_production.py
+```
+
+#### 方法三：开发模式
+```bash
+# 使用Flask开发服务器
 python web_server.py
 ```
+
+#### 方法四：批处理启动（Windows）
+```bash
+# 双击运行或命令行执行
+start.bat
+```
+
+#### 方法五：Shell脚本启动（Linux/Mac）
+```bash
+# 添加执行权限并运行
+chmod +x start.sh
+./start.sh
+```
+
 访问 http://localhost:5000 使用Web界面
 
 #### 方法二：控制台模式

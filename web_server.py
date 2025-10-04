@@ -7,9 +7,14 @@
 
 from flask import Flask, render_template, request, jsonify, send_file
 
-# 导入配置和系统
-from config import *
+# 导入系统
 from advanced_interactive_system_professional import ProfessionalInteractiveSystem
+
+# 配置参数
+TARGET_STOCK_NAME = "湖南黄金"
+BASE_INVESTMENT = 10000
+STOP_LOSS_RATE = 0.05
+PROFIT_TAKE_RATE = 0.15
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -18,24 +23,34 @@ app = Flask(__name__, static_folder='templates', static_url_path='')
 # 全局系统实例
 system = ProfessionalInteractiveSystem()
 
-def create_chart_data(data, stock_name):
-    """创建专业图表数据 - 按照标准Plotly示例"""
+def create_chart_data(data, stock_name, gold_data=None):
+    """创建专业图表数据 - 支持双K线图显示"""
     print(f"=== 创建K线图 ===")
-    print(f"数据形状: {data.shape}")
+    print(f"股票数据形状: {data.shape}")
+    print(f"伦敦金数据形状: {gold_data.shape if gold_data is not None else 'None'}")
     print(f"数据示例:")
     print(data.head(3))
     print(f"开盘价数据: {data['开盘'].tolist()[:5]}")
     print(f"日期范围: {data.index[0]} 到 {data.index[-1]}")
     print(f"数据点数: {len(data)}")
     
-    # 创建子图
-    fig = make_subplots(
-        rows=2, cols=1,
-        shared_xaxes=True,
-        vertical_spacing=0.05,
-        subplot_titles=(f'{stock_name} K线图', '成交量'),
-        row_heights=[0.7, 0.3]
-    )
+    # 创建子图 - 如果有伦敦金数据，增加一个子图
+    if gold_data is not None and not gold_data.empty:
+        fig = make_subplots(
+            rows=3, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.08,
+            subplot_titles=(f'{stock_name} K线图', '伦敦金K线图', '成交量'),
+            row_heights=[0.4, 0.3, 0.3]
+        )
+    else:
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            subplot_titles=(f'{stock_name} K线图', '成交量'),
+            row_heights=[0.7, 0.3]
+        )
     
     # 添加K线图 - 按照标准示例格式
     print(f"正在添加K线图...")
@@ -102,7 +117,33 @@ def create_chart_data(data, stock_name):
         )
         print(f"MA20已添加")
     
-    # 添加成交量 - 使用标准格式
+    # 添加伦敦金K线图
+    if gold_data is not None and not gold_data.empty:
+        print(f"正在添加伦敦金K线图...")
+        
+        # 将伦敦金数据转换为标准格式
+        gold_kline_data = {
+            'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
+            'open': gold_data['开盘'].tolist(),
+            'high': gold_data['最高'].tolist(),
+            'low': gold_data['最低'].tolist(),
+            'close': gold_data['收盘'].tolist()
+        }
+        
+        # 添加伦敦金K线图
+        fig.add_trace(go.Candlestick(
+            x=gold_kline_data['date'],
+            open=gold_kline_data['open'],
+            high=gold_kline_data['high'],
+            low=gold_kline_data['low'],
+            close=gold_kline_data['close'],
+            name='伦敦金',
+            increasing_line_color='red',
+            decreasing_line_color='green'
+        ), row=2, col=1)
+        print(f"伦敦金K线图已添加")
+    
+    # 添加成交量 - 使用标准格式（上涨红色，下跌绿色）
     colors = ['red' if close >= open_price else 'green' 
              for close, open_price in zip(data['收盘'], data['开盘'])]
     
@@ -112,6 +153,9 @@ def create_chart_data(data, stock_name):
         'colors': colors
     }
     
+    # 确定成交量的行号
+    volume_row = 3 if (gold_data is not None and not gold_data.empty) else 2
+    
     fig.add_trace(
         go.Bar(
             x=volume_data['date'],
@@ -119,51 +163,171 @@ def create_chart_data(data, stock_name):
             name='成交量',
             marker=dict(color=volume_data['colors'], opacity=0.7)
         ),
-        row=2, col=1
+        row=volume_row, col=1
     )
     print(f"成交量已添加")
     
     # 更新布局 - 修复xaxis警告并强制设置宽度
-    fig.update_layout(
-        title=f'{stock_name} K线图交易系统',
-        xaxis_title='日期',
-        yaxis_title='价格 (元)',
-        yaxis2_title='成交量',
-        height=800,
-        width=None,  # 明确设置为None让autosize生效
-        showlegend=True,
-        template='plotly_white',
-        autosize=True,
-        margin=dict(l=50, r=50, t=80, b=50),
-        # 修复xaxis配置，避免matches警告
-        xaxis=dict(
-            rangeslider=dict(visible=False),
-            type='category',
-            showgrid=True,
-            gridwidth=1,
-            gridcolor='lightgray',
-            matches=None  # 明确设置为None避免警告
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridwidth=1,
-            gridcolor='lightgray'
-        ),
-        yaxis2=dict(
-            showgrid=True,
-            gridwidth=1,
-            gridcolor='lightgray'
+    if gold_data is not None and not gold_data.empty:
+        # 三子图布局
+        fig.update_layout(
+            title=f'{stock_name} & 伦敦金 K线图交易系统',
+            xaxis_title='日期',
+            yaxis_title='股票价格 (元)',
+            yaxis2_title='伦敦金价格 (美元)',
+            yaxis3_title='成交量',
+            height=1000,
+            width=None,
+            showlegend=True,
+            template='plotly_white',
+            autosize=True,
+            margin=dict(l=50, r=50, t=80, b=50),
+            xaxis=dict(
+                type='category',
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='lightgray',
+                matches=None
+            ),
+            yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+            yaxis2=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+            yaxis3=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
         )
-    )
+    else:
+        # 二子图布局
+        fig.update_layout(
+            title=f'{stock_name} K线图交易系统',
+            xaxis_title='日期',
+            yaxis_title='价格 (元)',
+            yaxis2_title='成交量',
+            height=800,
+            width=None,
+            showlegend=True,
+            template='plotly_white',
+            autosize=True,
+            margin=dict(l=50, r=50, t=80, b=50),
+            xaxis=dict(
+                type='category',
+                showgrid=True,
+                gridwidth=1,
+                gridcolor='lightgray',
+                matches=None
+            ),
+            yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
+            yaxis2=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+        )
     
-    # 明确设置xaxis2配置，避免matches警告
-    fig.update_xaxes(
-        matches=None,
-        showgrid=True,
-        gridwidth=1,
-        gridcolor='lightgray',
-        row=2, col=1
-    )
+    # 强制设置所有xaxis和yaxis配置，确保网格密度完全一致
+    if gold_data is not None and not gold_data.empty:
+        # 三子图配置 - 强制统一网格设置
+        # 股票K线图 (row=1) - 减少网格密度
+        fig.update_xaxes(
+            rangeslider=dict(visible=False),
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            matches=None,
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=10,  # 限制网格数量
+            row=1, col=1
+        )
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=8,  # 限制网格数量
+            row=1, col=1
+        )
+        
+        # 伦敦金K线图 (row=2) - 增加网格密度
+        fig.update_xaxes(
+            rangeslider=dict(visible=False),
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            matches=None,
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=10,  # 限制网格数量
+            row=2, col=1
+        )
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=8,  # 限制网格数量
+            row=2, col=1
+        )
+        
+        # 成交量图 (row=3) - 增加网格密度
+        fig.update_xaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            matches=None,
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=10,  # 限制网格数量
+            row=3, col=1
+        )
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=8,  # 限制网格数量
+            row=3, col=1
+        )
+    else:
+        # 二子图配置 - 强制统一网格设置
+        # 股票K线图 (row=1) - 减少网格密度
+        fig.update_xaxes(
+            rangeslider=dict(visible=False),
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            matches=None,
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=10,  # 限制网格数量
+            row=1, col=1
+        )
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=8,  # 限制网格数量
+            row=1, col=1
+        )
+        
+        # 成交量图 (row=2) - 增加网格密度
+        fig.update_xaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            matches=None,
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=10,  # 限制网格数量
+            row=2, col=1
+        )
+        fig.update_yaxes(
+            showgrid=True,
+            gridwidth=0.5,
+            gridcolor='lightgray',
+            dtick=None,  # 禁用自动网格间隔
+            tickmode='auto',
+            nticks=8,  # 限制网格数量
+            row=2, col=1
+        )
     
     print(f"图表创建完成")
     print(f"图表布局信息:")
@@ -207,7 +371,7 @@ def analyze_stock():
         months = int(data.get('months', 6))
         
         # 获取当前配置值
-        stock_code = data.get('stock_code', TARGET_STOCK_CODE)
+        stock_code = data.get('stock_code', '002155')
         stock_name = data.get('stock_name', TARGET_STOCK_NAME)
         
         # 使用业务逻辑层准备数据
@@ -224,7 +388,7 @@ def analyze_stock():
         print(f"业务逻辑层数据准备完成，形状: {system.data.shape}")
         
         # 创建图表数据 - 只负责图表展示
-        chart_data = create_chart_data(system.data, stock_name)
+        chart_data = create_chart_data(system.data, stock_name, system.gold_data)
         
         return jsonify({
             'success': True,
@@ -251,6 +415,7 @@ def get_current_status():
             # 如果没有数据，返回默认状态
             return jsonify({
                 'current_price': 14.5,
+                'stock_change_rate': 0.0,
                 'gold_price': 2000.0,
                 'gold_change_rate': 0.0,
                 'position': {'has_position': False},
@@ -278,6 +443,7 @@ def get_current_status():
         
         return jsonify({
             'current_price': status['current_price'],
+            'stock_change_rate': status['stock_change_rate'],
             'gold_price': status['gold_price'],
             'gold_change_rate': status['gold_change_rate'],
             'position': position_info,
