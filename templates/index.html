@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>黄金板块交易系统</title>
+    <script src="./plotly.min.js" onload="console.log('✅ plotly.min.js 脚本加载完成')" onerror="console.error('❌ plotly.min.js 脚本加载失败')"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .main-content {
+            padding: 40px;
+        }
+
+        .form-section {
+            background: #f8f9fa;
+            padding: 30px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            border: 2px solid #e9ecef;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 1.1em;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 20px;
+            align-items: end;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        select, input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #ff6b6b;
+            box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #ff6b6b, #ffa500);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 107, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-panel {
+            background: #fff;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 20px;
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .status-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .status-item .label {
+            font-weight: bold;
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+
+        .status-item .value {
+            font-size: 1.2em;
+            color: #333;
+            font-weight: bold;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #ff6b6b;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result-section {
+            margin-top: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+
+        .result-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            text-decoration: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-top: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(40, 167, 69, 0.3);
+            text-decoration: none;
+            color: white;
+        }
+
+        .chart-section {
+            margin-top: 30px;
+            padding: 25px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+        }
+
+        .chart-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        #chartContainer {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            width: 100% !important;
+            min-width: 100%;
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #f5c6cb;
+            margin-top: 15px;
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #c3e6cb;
+            margin-top: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                flex-direction: column;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .main-content {
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏆 黄金板块交易系统</h1>
+            <p>基于国际金价涨跌的智能交易策略分析平台</p>
+        </div>
+
+        <div class="main-content">
+            <div class="form-section">
+                <h2 style="margin-bottom: 25px; color: #333;">📊 股票分析参数设置</h2>
+                
+                <form id="analysisForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="stockSelect">选择股票</label>
+                            <select id="stockSelect" name="stock_code">
+                                <option value="002155">湖南黄金 (002155)</option>
+                                <option value="600547">山东黄金 (600547)</option>
+                                <option value="000975">银泰黄金 (000975)</option>
+                                <option value="600489">中金黄金 (600489)</option>
+                                <option value="002237">恒邦股份 (002237)</option>
+                                <option value="600988">赤峰黄金 (600988)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="monthsSelect">时间范围</label>
+                            <select id="monthsSelect" name="months">
+                                <option value="1">1个月</option>
+                                <option value="3">3个月</option>
+                                <option value="6" selected>6个月</option>
+                                <option value="12">12个月</option>
+                                <option value="18">18个月</option>
+                                <option value="24">24个月</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="submit" class="btn" id="analyzeBtn">
+                            🚀 开始分析
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>正在分析数据，请稍候...</p>
+            </div>
+
+            <div class="status-panel" id="statusPanel" style="display: none;">
+                <h3>📈 实时策略状态</h3>
+                <div class="status-grid" id="statusGrid">
+                    <!-- 状态信息将通过JavaScript动态填充 -->
+                </div>
+            </div>
+
+            <div class="result-section" id="resultSection" style="display: none;">
+                <h3>📋 分析结果</h3>
+                <div id="resultContent">
+                    <!-- 结果内容将通过JavaScript动态填充 -->
+                </div>
+            </div>
+
+            <div class="chart-section" id="chartSection" style="display: none;">
+                <h3>📈 K线图分析</h3>
+                <div id="chartContainer" style="width: 100%; height: 600px;">
+                    <!-- Plotly图表将在这里显示 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentStatus = null;
+        let statusUpdateInterval = null;
+
+        // DOM元素
+        const form = document.getElementById('analysisForm');
+        const loading = document.getElementById('loading');
+        const statusPanel = document.getElementById('statusPanel');
+        const statusGrid = document.getElementById('statusGrid');
+        const resultSection = document.getElementById('resultSection');
+        const resultContent = document.getElementById('resultContent');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+
+        // 表单提交处理
+        form.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(form);
+            const data = {
+                months: parseInt(formData.get('months')),
+                stock_code: formData.get('stock_code'),
+                stock_name: document.getElementById('stockSelect').selectedOptions[0].text
+            };
+
+            // 显示加载状态
+            showLoading();
+            hideResults();
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSuccess(result);
+                    startStatusUpdates();
+                } else {
+                    showError(result.message);
+                }
+            } catch (error) {
+                showError('网络错误: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        });
+
+        // 显示加载状态
+        function showLoading() {
+            loading.classList.add('show');
+            analyzeBtn.disabled = true;
+            analyzeBtn.textContent = '分析中...';
+        }
+
+        // 隐藏加载状态
+        function hideLoading() {
+            loading.classList.remove('show');
+            analyzeBtn.disabled = false;
+            analyzeBtn.textContent = '🚀 开始分析';
+        }
+
+        // 显示成功结果
+        function showSuccess(result) {
+            resultContent.innerHTML = `
+                <div class="success">
+                    ✅ 分析完成！K线图已生成
+                </div>
+                <p><strong>股票:</strong> ${result.stock_name}</p>
+                <p><strong>时间范围:</strong> ${result.months}个月</p>
+            `;
+            resultSection.style.display = 'block';
+            
+            // 显示图表
+            if (result.chart_data) {
+                displayChart(result.chart_data);
+            }
+        }
+
+        // 显示错误信息
+        function showError(message) {
+            resultContent.innerHTML = `
+                <div class="error">
+                    ❌ ${message}
+                </div>
+            `;
+            resultSection.style.display = 'block';
+        }
+
+        // 隐藏结果
+        function hideResults() {
+            resultSection.style.display = 'none';
+            statusPanel.style.display = 'none';
+            document.getElementById('chartSection').style.display = 'none';
+        }
+
+        // 显示图表
+        function displayChart(chartData) {
+            console.log('📊 开始显示图表...');
+            console.log('图表数据长度:', chartData ? chartData.length : 'undefined');
+            console.log('当前窗口大小:', window.innerWidth + 'x' + window.innerHeight);
+            
+            try {
+                // 检查Plotly是否已加载
+                console.log('检查Plotly库状态...');
+                if (!checkPlotlyLoaded()) {
+                    console.error('❌ Plotly库未加载，开始重试机制...');
+                    // 等待Plotly库加载
+                    let retryCount = 0;
+                    const maxRetries = 10;
+                    
+                    function retryDisplayChart() {
+                        console.log(`🔄 重试显示图表 (${retryCount + 1}/${maxRetries})`);
+                        
+                        if (checkPlotlyLoaded()) {
+                            console.log('✅ Plotly库已就绪，重新调用displayChart');
+                            displayChart(chartData);
+                        } else if (retryCount < maxRetries) {
+                            retryCount++;
+                            console.log(`⏳ Plotly库未就绪，${500}ms后重试`);
+                            setTimeout(retryDisplayChart, 500);
+                        } else {
+                            console.error('❌ Plotly库重试失败，已达到最大重试次数');
+                            showError('图表库加载失败，请刷新页面重试');
+                        }
+                    }
+                    
+                    setTimeout(retryDisplayChart, 500);
+                    return;
+                }
+                
+                console.log('✅ Plotly库已就绪，开始创建图表');
+                
+                const chartContainer = document.getElementById('chartContainer');
+                const chartSection = document.getElementById('chartSection');
+                
+                console.log('图表容器:', chartContainer);
+                console.log('图表区域:', chartSection);
+                
+                if (!chartContainer) {
+                    console.error('❌ 图表容器未找到');
+                    showError('图表容器未找到');
+                    return;
+                }
+                
+                // 确保图表区域已显示，否则尺寸为0
+                if (chartSection.style.display === 'none') {
+                    chartSection.style.display = 'block';
+                    console.log('🔧 强制显示图表区域');
+                }
+                
+                // 解析图表数据
+                console.log('解析图表数据...');
+                const data = JSON.parse(chartData);
+                console.log('解析后的数据:', data);
+                console.log('数据键:', Object.keys(data));
+                
+                if (!data.data || !data.layout) {
+                    console.error('❌ 图表数据格式错误');
+                    console.log('data.data:', data.data);
+                    console.log('data.layout:', data.layout);
+                    showError('图表数据格式错误');
+                    return;
+                }
+                
+                console.log('✅ 图表数据验证通过，开始创建Plotly图表');
+                console.log('数据轨迹数量:', data.data.length);
+                console.log('布局信息:', data.layout);
+                console.log('布局宽度和高度:', {
+                    width: data.layout.width,
+                    height: data.layout.height,
+                    autosize: data.layout.autosize
+                });
+                
+                // 使用Plotly显示图表
+                console.log('🔧 开始创建Plotly图表，配置参数:', {
+                    responsive: true,
+                    autosize: true,
+                    useResizeHandler: true
+                });
+                
+                // 强制设置容器样式
+                chartContainer.style.width = '100%';
+                chartContainer.style.minWidth = '100%';
+                chartContainer.style.maxWidth = 'none';
+                console.log('🔧 强制设置容器样式完成');
+                
+                Plotly.newPlot(chartContainer, data.data, data.layout, {
+                    responsive: true,
+                    displayModeBar: true,
+                    modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
+                    displaylogo: false,
+                    autosize: true,
+                    useResizeHandler: true
+                }).then(function() {
+                    console.log('✅ Plotly图表创建成功');
+                    
+                    // 等待一帧后获取尺寸和调试信息
+                    setTimeout(() => {
+                        console.log('图表容器尺寸:', {
+                            width: chartContainer.offsetWidth,
+                            height: chartContainer.offsetHeight,
+                            clientWidth: chartContainer.clientWidth,
+                            clientHeight: chartContainer.clientHeight
+                        });
+                        console.log('图表区域尺寸:', {
+                            width: chartSection.offsetWidth,
+                            height: chartSection.offsetHeight,
+                            clientWidth: chartSection.clientWidth,
+                            clientHeight: chartSection.clientHeight
+                        });
+                        
+                        // 调用调试函数
+                        debugChartContainer();
+                    }, 10);
+                    
+                    // 立即强制重新调整大小
+                    console.log('🔄 立即强制重新调整图表大小');
+                    forceFixChartWidth();
+                    
+                    // 延迟修复
+                    setTimeout(function() {
+                        console.log('🔄 延迟修复图表宽度');
+                        forceFixChartWidth();
+                    }, 100);
+                    
+                    // 再次尝试修复
+                    setTimeout(function() {
+                        console.log('🔄 二次修复图表宽度');
+                        forceFixChartWidth();
+                    }, 500);
+                });
+                
+                // 显示图表区域
+                chartSection.style.display = 'block';
+                console.log('✅ 图表区域已显示');
+                
+                // 添加窗口大小变化监听
+                window.addEventListener('resize', function() {
+                    console.log('🔄 窗口大小变化，重新调整图表大小');
+                    console.log('新窗口大小:', window.innerWidth + 'x' + window.innerHeight);
+                    console.log('图表容器当前尺寸:', {
+                        width: chartContainer.offsetWidth,
+                        height: chartContainer.offsetHeight
+                    });
+                    Plotly.Plots.resize(chartContainer);
+                });
+                
+                console.log('🎉 图表显示完成');
+            } catch (error) {
+                console.error('❌ 图表显示失败:', error);
+                console.error('错误堆栈:', error.stack);
+                showError('图表显示失败: ' + error.message);
+            }
+        }
+
+        // 开始状态更新
+        function startStatusUpdates() {
+            updateStatus();
+            statusUpdateInterval = setInterval(updateStatus, 5000); // 每5秒更新一次
+        }
+
+        // 更新状态
+        async function updateStatus() {
+            try {
+                const response = await fetch('/api/current_status');
+                const status = await response.json();
+                
+                if (status.error) {
+                    console.error('获取状态失败:', status.error);
+                    return;
+                }
+
+                currentStatus = status;
+                displayStatus(status);
+                statusPanel.style.display = 'block';
+            } catch (error) {
+                console.error('状态更新失败:', error);
+            }
+        }
+
+        // 显示状态
+        function displayStatus(status) {
+            const positionText = status.position.has_position ? 
+                `有持仓 (${status.position.shares}股)` : '无持仓';
+            
+            const profitText = status.position.has_position ? 
+                `${(status.position.current_profit_rate * 100).toFixed(2)}%` : '-';
+
+            statusGrid.innerHTML = `
+                <div class="status-item">
+                    <div class="label">当前股价</div>
+                    <div class="value">¥${status.current_price.toFixed(2)}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">国际金价</div>
+                    <div class="value">$${status.gold_price.toFixed(2)}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">金价涨跌</div>
+                    <div class="value" style="color: ${status.gold_change_rate >= 0 ? '#28a745' : '#dc3545'}">
+                        ${(status.gold_change_rate * 100).toFixed(2)}%
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="label">持仓状态</div>
+                    <div class="value">${positionText}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">当前盈亏</div>
+                    <div class="value" style="color: ${profitText.includes('-') && profitText !== '-' ? '#dc3545' : '#28a745'}">
+                        ${profitText}
+                    </div>
+                </div>
+                <div class="status-item">
+                    <div class="label">交易次数</div>
+                    <div class="value">${status.trade_count}次</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">基础投资</div>
+                    <div class="value">¥${status.base_investment.toLocaleString()}</div>
+                </div>
+                <div class="status-item">
+                    <div class="label">止损比例</div>
+                    <div class="value">${(status.stop_loss_rate * 100).toFixed(1)}%</div>
+                </div>
+            `;
+        }
+
+        // 检查Plotly库是否加载
+        function checkPlotlyLoaded() {
+            console.log('检查Plotly库状态...');
+            console.log('typeof Plotly:', typeof Plotly);
+            console.log('Plotly对象:', Plotly);
+            
+            if (typeof Plotly !== 'undefined') {
+                console.log('✅ Plotly库加载成功');
+                return true;
+            } else {
+                console.log('❌ Plotly库未加载，继续等待...');
+                return false;
+            }
+        }
+
+        // 调试图表容器样式
+        function debugChartContainer() {
+            const chartContainer = document.getElementById('chartContainer');
+            if (!chartContainer) {
+                console.log('❌ 图表容器未找到');
+                return;
+            }
+            
+            const styles = window.getComputedStyle(chartContainer);
+            console.log('📊 图表容器样式调试:');
+            console.log('  - 元素尺寸:', {
+                offsetWidth: chartContainer.offsetWidth,
+                height: chartContainer.offsetHeight,
+                clientWidth: chartContainer.clientWidth,
+                clientHeight: chartContainer.clientHeight,
+                scrollWidth: chartContainer.scrollWidth,
+                scrollHeight: chartContainer.scrollHeight
+            });
+            console.log('  - CSS样式:', {
+                width: styles.width,
+                height: styles.height,
+                minWidth: styles.minWidth,
+                maxWidth: styles.maxWidth,
+                display: styles.display,
+                position: styles.position,
+                boxSizing: styles.boxSizing
+            });
+            console.log('  - 父容器:', chartContainer.parentElement);
+            console.log('  - 父容器尺寸:', {
+                width: chartContainer.parentElement.offsetWidth,
+                height: chartContainer.parentElement.offsetHeight
+            });
+        }
+
+        // 强制修复图表宽度
+        function forceFixChartWidth() {
+            const chartContainer = document.getElementById('chartContainer');
+            if (!chartContainer) return;
+            
+            console.log('🔧 强制修复图表宽度...');
+            console.log('修复前尺寸:', {
+                width: chartContainer.offsetWidth,
+                height: chartContainer.offsetHeight
+            });
+            
+            // 强制设置样式
+            chartContainer.style.width = '100%';
+            chartContainer.style.minWidth = '100%';
+            chartContainer.style.maxWidth = 'none';
+            chartContainer.style.boxSizing = 'border-box';
+            
+            // 强制重新渲染
+            if (typeof Plotly !== 'undefined' && Plotly.Plots) {
+                Plotly.Plots.resize(chartContainer);
+            }
+            
+            console.log('修复后尺寸:', {
+                width: chartContainer.offsetWidth,
+                height: chartContainer.offsetHeight
+            });
+        }
+
+        // 页面加载时获取初始状态
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 页面DOM加载完成');
+            console.log('开始检查Plotly库...');
+            
+            // 检查Plotly库是否加载
+            let checkCount = 0;
+            const maxChecks = 10;
+            
+            function checkPlotly() {
+                console.log(`第${checkCount + 1}次检查Plotly库...`);
+                
+                if (checkPlotlyLoaded()) {
+                    console.log('✅ Plotly库检查成功，开始更新状态');
+                    updateStatus();
+                } else if (checkCount < maxChecks) {
+                    checkCount++;
+                    console.log(`⏳ Plotly库未就绪，${500}ms后重试 (${checkCount}/${maxChecks})`);
+                    setTimeout(checkPlotly, 500);
+                } else {
+                    console.error('❌ Plotly库加载超时，已达到最大重试次数');
+                    showError('图表库加载超时，请刷新页面重试');
+                }
+            }
+            
+            checkPlotly();
+        });
+
+        // 页面卸载时清理定时器
+        window.addEventListener('beforeunload', function() {
+            if (statusUpdateInterval) {
+                clearInterval(statusUpdateInterval);
+            }
+        });
+    </script>
+</body>
+</html>
