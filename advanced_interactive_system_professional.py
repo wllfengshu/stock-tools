@@ -19,9 +19,85 @@ warnings.filterwarnings('ignore')
 
 # 配置参数
 TARGET_STOCK_NAME = "湖南黄金"
-BASE_INVESTMENT = 10000
-STOP_LOSS_RATE = 0.05
-PROFIT_TAKE_RATE = 0.15
+BASE_INVESTMENT = 10000  # 基础投资金额
+STOP_LOSS_RATE = 0.10    # 止损率 10%
+PROFIT_TAKE_RATE = 0.15  # 止盈率 15%
+
+# 新增策略参数
+GOLD_PRICE_CHECK_TIME = "08:00"  # 金价检查时间
+STOCK_BUY_TIME = "09:30"        # 股票买入时间
+PROFIT_CALLBACK_RATE = 0.01     # 盈利回调率 1% (从5%回调到4%)
+MAX_PROFIT_RATE = 0.05           # 最大盈利率 5%
+
+class TradingStrategy:
+    """
+    黄金板块量化交易策略
+    """
+    
+    def __init__(self, base_investment=10000, stop_loss_rate=0.10, 
+                 profit_callback_rate=0.01, max_profit_rate=0.05):
+        """
+        初始化交易策略
+        
+        Args:
+            base_investment: 基础投资金额
+            stop_loss_rate: 止损率
+            profit_callback_rate: 盈利回调率
+            max_profit_rate: 最大盈利率
+        """
+        self.base_investment = base_investment
+        self.stop_loss_rate = stop_loss_rate
+        self.profit_callback_rate = profit_callback_rate
+        self.max_profit_rate = max_profit_rate
+        self.positions = []
+        self.trade_history = []
+        
+    def should_buy(self, gold_change_rate):
+        """
+        判断是否应该买入
+        
+        Args:
+            gold_change_rate: 金价涨跌幅
+            
+        Returns:
+            tuple: (是否买入, 买入金额)
+        """
+        if gold_change_rate > 0:  # 金价上涨
+            buy_amount = self.base_investment * gold_change_rate
+            return True, buy_amount
+        return False, 0
+    
+    def should_sell(self, current_price, buy_price, max_profit_rate):
+        """
+        判断是否应该卖出
+        
+        Args:
+            current_price: 当前价格
+            buy_price: 买入价格
+            max_profit_rate: 历史最大盈利率
+            
+        Returns:
+            bool: 是否卖出
+        """
+        if max_profit_rate >= self.max_profit_rate:
+            # 如果曾经达到过5%盈利，现在回调到4%就卖出
+            current_profit_rate = (current_price - buy_price) / buy_price
+            if current_profit_rate <= self.max_profit_rate - self.profit_callback_rate:
+                return True
+        
+        # 止损检查
+        if current_price <= buy_price * (1 - self.stop_loss_rate):
+            return True
+            
+        return False
+    
+    def calculate_position_value(self, shares, current_price):
+        """计算持仓价值"""
+        return shares * current_price
+    
+    def calculate_profit_rate(self, current_price, buy_price):
+        """计算盈利率"""
+        return (current_price - buy_price) / buy_price
 
 class ProfessionalInteractiveSystem:
     """
@@ -35,10 +111,16 @@ class ProfessionalInteractiveSystem:
         self.current_position = None
         self.data = None
         self.gold_data = None
+        self.strategy = TradingStrategy(
+            base_investment=BASE_INVESTMENT,
+            stop_loss_rate=STOP_LOSS_RATE,
+            profit_callback_rate=PROFIT_CALLBACK_RATE,
+            max_profit_rate=MAX_PROFIT_RATE
+        )
         
-    def get_stock_data(self, months=6):
+    def get_stock_data(self, months=6, stock_code='002155'):
         """获取股票数据"""
-        print(f"正在获取{TARGET_STOCK_NAME}近{months}个月的历史数据...")
+        print(f"正在获取股票{stock_code}近{months}个月的历史数据...")
         
         # 获取最近6个月的数据，不限制结束日期
         end_date = datetime.now().strftime('%Y%m%d')
@@ -46,7 +128,7 @@ class ProfessionalInteractiveSystem:
         
         try:
             stock_data = ak.stock_zh_a_hist(
-                symbol='002155',
+                symbol=stock_code,
                 period="daily",
                 start_date=start_date,
                 end_date=end_date,
@@ -54,67 +136,22 @@ class ProfessionalInteractiveSystem:
             )
             
             if stock_data.empty:
-                print("未获取到数据，使用专业模拟数据...")
-                return self.create_professional_mock_data(months)
+                print(f"❌ 未获取到股票{stock_code}的数据")
+                raise Exception(f"无法获取股票{stock_code}的历史数据")
             
-            print(f"成功获取 {len(stock_data)} 条数据")
+            # 确保索引是datetime类型
+            if not isinstance(stock_data.index, pd.DatetimeIndex):
+                print(f" 警告: 股票{stock_code}索引不是DatetimeIndex，尝试转换...")
+                stock_data.index = pd.to_datetime(stock_data.index)
+            
+            print(f"✅ 成功获取股票{stock_code}的 {len(stock_data)} 条数据")
             return stock_data
             
         except Exception as e:
-            print(f"获取数据出错: {e}")
-            print("使用专业模拟数据...")
-            return self.create_professional_mock_data(months)
+            print(f"❌ 获取股票{stock_code}数据出错: {e}")
+            raise Exception(f"获取股票{stock_code}数据失败: {str(e)}")
     
-    def create_professional_mock_data(self, months=6):
-        """创建专业模拟数据"""
-        print("创建专业K线数据...")
-        
-        dates = pd.date_range(start=datetime.now() - timedelta(days=months*30), 
-                             end=datetime.now(), freq='D')
-        dates = [d for d in dates if d.weekday() < 5]
-        
-        # 生成更真实的股价数据
-        np.random.seed(42)
-        base_price = 20.0
-        prices = []
-        
-        # 生成趋势和波动
-        trend = np.linspace(0, 0.15, len(dates))
-        noise = np.random.normal(0, 0.03, len(dates))
-        price_changes = trend + noise
-        
-        for i, date in enumerate(dates):
-            if i == 0:
-                current_price = base_price
-            else:
-                current_price = prices[i-1]['收盘'] * (1 + price_changes[i])
-                current_price = max(15.0, min(30.0, current_price))
-            
-            # 生成专业OHLC数据
-            daily_volatility = np.random.uniform(0.015, 0.035)
-            gap = np.random.normal(0, 0.008)
-            open_price = current_price * (1 + gap)
-            
-            high_low_range = current_price * daily_volatility
-            high_price = max(open_price, current_price) + np.random.uniform(0, high_low_range)
-            low_price = min(open_price, current_price) - np.random.uniform(0, high_low_range)
-            close_price = open_price * (1 + price_changes[i])
-            
-            high_price = max(open_price, high_price, close_price)
-            low_price = min(open_price, low_price, close_price)
-            
-            volume = int(np.random.uniform(200000, 1000000))
-            
-            prices.append({
-                '日期': date.strftime('%Y-%m-%d'),
-                '开盘': round(open_price, 2),
-                '最高': round(high_price, 2),
-                '最低': round(low_price, 2),
-                '收盘': round(close_price, 2),
-                '成交量': volume
-            })
-        
-        return pd.DataFrame(prices)
+    # 已移除模拟数据生成函数，现在只使用真实数据
     
     def get_gold_historical_data(self, months=6):
         """获取伦敦金历史数据"""
@@ -143,6 +180,11 @@ class ProfessionalInteractiveSystem:
             gold_data['date'] = pd.to_datetime(gold_data['date'])
             gold_data = gold_data.set_index('date')
             gold_data = gold_data.sort_index()
+            
+            # 确保索引是datetime类型
+            if not isinstance(gold_data.index, pd.DatetimeIndex):
+                print(" 警告: 索引不是DatetimeIndex，尝试转换...")
+                gold_data.index = pd.to_datetime(gold_data.index)
             
             # 获取最新数据日期
             latest_date = gold_data.index.max()
@@ -277,15 +319,20 @@ class ProfessionalInteractiveSystem:
             price_change_rate = (current_price - previous_price) / previous_price
             return current_price, previous_price, price_change_rate
     
-    def prepare_data(self, months=6):
+    def prepare_data(self, months=6, stock_code='002155'):
         """准备数据 - 只负责数据处理，不涉及图表"""
-        print(f"正在准备{TARGET_STOCK_NAME}数据...")
+        print(f"正在准备股票{stock_code}数据...")
         
-        # 获取股票数据
-        self.data = self.get_stock_data(months)
-        
-        if self.data.empty:
-            print("无法获取股票数据")
+        try:
+            # 获取股票数据
+            self.data = self.get_stock_data(months, stock_code)
+            
+            if self.data.empty:
+                print(f"❌ 股票{stock_code}数据为空")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 准备股票{stock_code}数据失败: {e}")
             return False
         
         # 准备股票数据
@@ -415,17 +462,39 @@ class ProfessionalInteractiveSystem:
     
     def get_strategy_status(self):
         """获取策略状态 - 只返回数据，不涉及图表"""
+        print(f"🔍 get_strategy_status: data is None={self.data is None}, empty={self.data.empty if self.data is not None else 'N/A'}")
+        
         if self.data is None or self.data.empty:
+            print("⚠️ 数据为空，返回None")
             return None
-            
-        current_price = self.data['收盘'].iloc[-1]
+        
+        # 清理NaN值的辅助函数
+        def clean_nan(value, default=0.0):
+            import math
+            if isinstance(value, float) and math.isnan(value):
+                return default
+            return value
+        
+        # 调试数据
+        print(f"📊 数据形状: {self.data.shape}")
+        print(f"📊 收盘价列: {self.data['收盘'].iloc[-5:].tolist()}")
+        print(f"📊 最新收盘价: {self.data['收盘'].iloc[-1]}")
+        
+        current_price = clean_nan(self.data['收盘'].iloc[-1])
+        print(f"📊 清理后的当前价格: {current_price}")
+        
         current_gold_price, _, gold_change_rate = self.get_international_gold_price()
+        
+        # 清理金价数据
+        current_gold_price = clean_nan(current_gold_price, 2000.0)
+        gold_change_rate = clean_nan(gold_change_rate, 0.0)
         
         # 计算股价涨跌
         stock_change_rate = 0.0
         if len(self.data) >= 2:
-            previous_stock_price = self.data['收盘'].iloc[-2]
-            stock_change_rate = (current_price - previous_stock_price) / previous_stock_price
+            previous_stock_price = clean_nan(self.data['收盘'].iloc[-2])
+            if previous_stock_price != 0:
+                stock_change_rate = clean_nan((current_price - previous_stock_price) / previous_stock_price)
         
         return {
             'current_price': current_price,
@@ -438,6 +507,18 @@ class ProfessionalInteractiveSystem:
             'stop_loss_rate': STOP_LOSS_RATE,
             'profit_take_rate': PROFIT_TAKE_RATE
         }
+    
+    def get_stock_name(self, stock_code):
+        """根据股票代码获取股票名称"""
+        stock_names = {
+            '002155': '湖南黄金',
+            '600547': '山东黄金', 
+            '000975': '银泰黄金',
+            '600489': '中金黄金',
+            '002237': '恒邦股份',
+            '600988': '赤峰黄金'
+        }
+        return stock_names.get(stock_code, f'股票{stock_code}')
 
 def main(months=6, stock_code=None, web_mode=False):
     """主程序入口 - 只负责业务逻辑"""
@@ -472,6 +553,149 @@ def main(months=6, stock_code=None, web_mode=False):
         print("数据准备失败")
     
     return system
+
+# 在类外部添加方法到ProfessionalInteractiveSystem类
+def add_strategy_methods_to_class():
+    """为ProfessionalInteractiveSystem类添加策略方法"""
+    
+    def execute_strategy(self, stock_code='002155'):
+        """
+        执行量化交易策略
+        
+        Args:
+            stock_code: 股票代码
+            
+        Returns:
+            dict: 策略执行结果
+        """
+        try:
+            # 1. 获取国际金价
+            gold_data = self.get_international_gold_price()
+            if gold_data is None or gold_data.empty:
+                return {'error': '无法获取国际金价数据'}
+            
+            current_gold_price = gold_data.iloc[0, 1]
+            previous_gold_price = gold_data.iloc[0, 8]
+            gold_change_rate = (current_gold_price - previous_gold_price) / previous_gold_price
+            
+            # 2. 获取股票当前价格
+            stock_data = self.get_stock_data()
+            if stock_data is None or stock_data.empty:
+                return {'error': '无法获取股票数据'}
+            
+            current_stock_price = stock_data.iloc[-1]['收盘']
+            
+            # 3. 执行买入逻辑
+            should_buy, buy_amount = self.strategy.should_buy(gold_change_rate)
+            
+            # 4. 检查卖出条件（如果有持仓）
+            should_sell = False
+            if self.current_position:
+                should_sell = self.strategy.should_sell(
+                    current_stock_price, 
+                    self.current_position['buy_price'],
+                    self.current_position.get('max_profit_rate', 0)
+                )
+            
+            # 5. 执行交易
+            trade_result = {
+                'gold_price': current_gold_price,
+                'gold_change_rate': gold_change_rate,
+                'stock_price': current_stock_price,
+                'should_buy': should_buy,
+                'buy_amount': buy_amount,
+                'should_sell': should_sell,
+                'current_position': self.current_position
+            }
+            
+            if should_buy and not self.current_position:
+                # 执行买入
+                shares = buy_amount / current_stock_price
+                self.current_position = {
+                    'buy_price': current_stock_price,
+                    'shares': shares,
+                    'buy_amount': buy_amount,
+                    'buy_date': datetime.now(),
+                    'max_profit_rate': 0
+                }
+                trade_result['action'] = 'BUY'
+                trade_result['shares'] = shares
+                
+            elif should_sell and self.current_position:
+                # 执行卖出
+                sell_amount = self.current_position['shares'] * current_stock_price
+                profit = sell_amount - self.current_position['buy_amount']
+                profit_rate = profit / self.current_position['buy_amount']
+                
+                self.trade_history.append({
+                    'buy_price': self.current_position['buy_price'],
+                    'sell_price': current_stock_price,
+                    'shares': self.current_position['shares'],
+                    'profit': profit,
+                    'profit_rate': profit_rate,
+                    'buy_date': self.current_position['buy_date'],
+                    'sell_date': datetime.now()
+                })
+                
+                trade_result['action'] = 'SELL'
+                trade_result['profit'] = profit
+                trade_result['profit_rate'] = profit_rate
+                
+                self.current_position = None
+            
+            # 6. 更新持仓最大盈利率
+            if self.current_position:
+                current_profit_rate = self.strategy.calculate_profit_rate(
+                    current_stock_price, self.current_position['buy_price']
+                )
+                self.current_position['max_profit_rate'] = max(
+                    self.current_position['max_profit_rate'], 
+                    current_profit_rate
+                )
+                trade_result['current_profit_rate'] = current_profit_rate
+                trade_result['max_profit_rate'] = self.current_position['max_profit_rate']
+            
+            return trade_result
+            
+        except Exception as e:
+            return {'error': f'策略执行失败: {str(e)}'}
+    
+    def get_strategy_status(self):
+        """获取策略状态"""
+        if not self.current_position:
+            return {
+                'has_position': False,
+                'message': '当前无持仓'
+            }
+        
+        # 获取当前股票价格
+        try:
+            stock_data = self.get_stock_data()
+            current_price = stock_data.iloc[-1]['收盘']
+            
+            current_profit_rate = self.strategy.calculate_profit_rate(
+                current_price, self.current_position['buy_price']
+            )
+            
+            position_value = self.strategy.calculate_position_value(
+                self.current_position['shares'], current_price
+            )
+            
+            return {
+                'has_position': True,
+                'buy_price': self.current_position['buy_price'],
+                'current_price': current_price,
+                'shares': self.current_position['shares'],
+                'position_value': position_value,
+                'profit_rate': current_profit_rate,
+                'max_profit_rate': self.current_position['max_profit_rate'],
+                'buy_date': self.current_position['buy_date'].strftime('%Y-%m-%d %H:%M:%S')
+            }
+        except Exception as e:
+            return {
+                'has_position': True,
+                'error': f'获取持仓状态失败: {str(e)}'
+            }
 
 if __name__ == "__main__":
     main()
