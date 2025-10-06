@@ -15,7 +15,7 @@ import time
 sys.path.insert(0, os.path.abspath('./akshare'))
 import akshare as ak
 
-class ImprovedGoldTradingStrategy:
+class TradingStrategy:
     """
     策略逻辑：
     1. 每天早上8点获取国际金价
@@ -614,7 +614,7 @@ def main():
     print("=" * 60)
     
     # 创建改进版策略实例
-    strategy = ImprovedGoldTradingStrategy(
+    strategy = TradingStrategy(
         
     )
     

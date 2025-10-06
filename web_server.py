@@ -8,14 +8,11 @@
 from flask import Flask, render_template, request, jsonify, send_file
 
 # 导入系统
-from advanced_interactive_system_professional import ProfessionalInteractiveSystem
-from kline_similarity_analyzer import KlineSimilarityAnalyzer
+from data_provider import DataProvider
+from similarity_analyzer import SimilarityAnalyzer
+from trading_strategy import TradingStrategy
 
-# 配置参数
-TARGET_STOCK_NAME = "湖南黄金"
-BASE_INVESTMENT = 10000
-STOP_LOSS_RATE = 0.05
-PROFIT_TAKE_RATE = 0.15
+# 配置参数 - 仅用于内部逻辑，不用于默认值
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import numpy as np
@@ -23,8 +20,12 @@ import numpy as np
 app = Flask(__name__, static_folder='templates', static_url_path='')
 
 # 全局系统实例
-system = ProfessionalInteractiveSystem()
-similarity_analyzer = KlineSimilarityAnalyzer()
+data_provider = DataProvider()
+similarity_analyzer = SimilarityAnalyzer()
+strategy = TradingStrategy()
+
+# 跟踪当前加载的股票代码
+current_loaded_stock = None
 
 def create_similarity_chart(analysis_result):
     """创建相似度分析图表数据 - 显示每日相似度折线图"""
@@ -107,7 +108,6 @@ def create_similarity_chart(analysis_result):
     # 更新布局
     fig.update_layout(
         title=f'股票与金价走势相似度分析 - 综合分数: {comprehensive_score:.1f}/100',
-        xaxis_title='日期',
         yaxis_title='相似度 (%)',
         height=600,
         showlegend=True,
@@ -223,29 +223,49 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
     
     # 添加伦敦金K线图
     if gold_data is not None and not gold_data.empty:
-        print(f"正在添加伦敦金K线图...")
+        print(f"🥇 正在添加伦敦金K线图...")
+        print(f"🔍 伦敦金数据列名: {gold_data.columns.tolist()}")
+        print(f"🔍 伦敦金数据形状: {gold_data.shape}")
+        print(f"🔍 伦敦金数据示例:")
+        print(gold_data.head(3))
         
-        # 将伦敦金数据转换为标准格式
-        gold_kline_data = {
-            'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
-            'open': gold_data['开盘'].tolist(),
-            'high': gold_data['最高'].tolist(),
-            'low': gold_data['最低'].tolist(),
-            'close': gold_data['收盘'].tolist()
-        }
+        # 检查必要的列是否存在
+        required_columns = ['开盘', '最高', '最低', '收盘']
+        missing_columns = [col for col in required_columns if col not in gold_data.columns]
         
-        # 添加伦敦金K线图
-        fig.add_trace(go.Candlestick(
-            x=gold_kline_data['date'],
-            open=gold_kline_data['open'],
-            high=gold_kline_data['high'],
-            low=gold_kline_data['low'],
-            close=gold_kline_data['close'],
-            name='伦敦金',
-            increasing_line_color='red',
-            decreasing_line_color='green'
-        ), row=2, col=1)
-        print(f"伦敦金K线图已添加")
+        if missing_columns:
+            print(f"❌ 伦敦金数据缺少必要列: {missing_columns}")
+            print(f"🔍 可用列: {gold_data.columns.tolist()}")
+        else:
+            # 将伦敦金数据转换为标准格式
+            gold_kline_data = {
+                'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
+                'open': gold_data['开盘'].tolist(),
+                'high': gold_data['最高'].tolist(),
+                'low': gold_data['最低'].tolist(),
+                'close': gold_data['收盘'].tolist()
+            }
+            
+            print(f"🔍 伦敦金K线数据转换完成:")
+            print(f"  日期数量: {len(gold_kline_data['date'])}")
+            print(f"  开盘价数量: {len(gold_kline_data['open'])}")
+            print(f"  前3个日期: {gold_kline_data['date'][:3]}")
+            print(f"  前3个开盘价: {gold_kline_data['open'][:3]}")
+            
+            # 添加伦敦金K线图
+            fig.add_trace(go.Candlestick(
+                x=gold_kline_data['date'],
+                open=gold_kline_data['open'],
+                high=gold_kline_data['high'],
+                low=gold_kline_data['low'],
+                close=gold_kline_data['close'],
+                name='伦敦金',
+                increasing_line_color='red',
+                decreasing_line_color='green'
+            ), row=2, col=1)
+            print(f"✅ 伦敦金K线图已添加")
+    else:
+        print(f"⚠️ 伦敦金数据为空或None，跳过伦敦金K线图")
     
     # 添加交易点标识
     if trade_points and len(trade_points) > 0:
@@ -322,7 +342,6 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
         # 三子图布局
         fig.update_layout(
             title=f'{stock_name} & 伦敦金 K线图交易系统',
-            xaxis_title='日期',
             yaxis_title='股票价格 (元)',
             yaxis2_title='伦敦金价格 (美元)',
             yaxis3_title='成交量',
@@ -347,7 +366,6 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
         # 二子图布局
         fig.update_layout(
             title=f'{stock_name} K线图交易系统',
-            xaxis_title='日期',
             yaxis_title='价格 (元)',
             yaxis2_title='成交量',
             height=800,
@@ -523,16 +541,30 @@ def analyze_stock():
     """分析股票数据"""
     try:
         data = request.get_json()
-        months = int(data.get('months', 6))
+        months = data.get('months')
+        if not months:
+            return jsonify({
+                'success': False,
+                'message': '请提供时间范围参数'
+            })
+        months = int(months)
         
         # 获取当前配置值
-        stock_code = data.get('stock_code', '002155')
-        stock_name = data.get('stock_name', TARGET_STOCK_NAME)
+        stock_code = data.get('stock_code')
+        stock_name = data.get('stock_name', '未知股票')
         
-        # 如果stock_name为undefined或空，使用默认值
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'message': '请选择股票代码'
+            })
+        
+        # 检查股票名称是否有效
         if not stock_name or stock_name == 'undefined' or stock_name == 'null':
-            stock_name = TARGET_STOCK_NAME
-            print(f"股票名称为空，使用默认值: {stock_name}")
+            return jsonify({
+                'success': False,
+                'message': '股票名称不能为空'
+            })
         
         print(f"最终使用的股票名称: {stock_name}")
         
@@ -540,14 +572,14 @@ def analyze_stock():
         print("Web服务器：调用业务逻辑层准备数据...")
         print(f"请求参数: months={months}, stock_code={stock_code}, stock_name={stock_name}")
         
-        # 调用业务逻辑层
-        if not system.prepare_data(months, stock_code):
+        # 调用K线图分析器准备数据
+        if not similarity_analyzer.prepare_data(months, stock_code):
             return jsonify({
                 'success': False,
                 'message': f'无法获取股票{stock_code}({stock_name})的数据，请检查股票代码是否正确或网络连接'
             })
         
-        print(f"业务逻辑层数据准备完成，形状: {system.data.shape}")
+        print(f"K线图分析器数据准备完成，形状: {similarity_analyzer.stock_data.shape}")
         
         # 获取交易历史数据
         trade_points = []
@@ -560,7 +592,12 @@ def analyze_stock():
             trade_points = []
         
         # 创建图表数据 - 包含交易点标识
-        chart_data = create_chart_data(system.data, stock_name, system.gold_data, trade_points)
+        print(f"🔍 准备创建图表数据:")
+        print(f"  股票数据: {similarity_analyzer.stock_data.shape if similarity_analyzer.stock_data is not None else 'None'}")
+        print(f"  伦敦金数据: {similarity_analyzer.gold_data.shape if similarity_analyzer.gold_data is not None else 'None'}")
+        print(f"  交易点: {len(trade_points) if trade_points else 0}")
+        
+        chart_data = create_chart_data(similarity_analyzer.stock_data, stock_name, similarity_analyzer.gold_data, trade_points)
         
         return jsonify({
             'success': True,
@@ -582,23 +619,41 @@ def analyze_similarity():
     """分析股票与金价的走势相似度"""
     try:
         data = request.get_json()
-        stock_code = data.get('stock_code', '002155')
-        months = data.get('months', 6)
+        stock_code = data.get('stock_code')
+        months = data.get('months')
+        if not months:
+            return jsonify({
+                'success': False,
+                'message': '请提供时间范围参数'
+            })
+        months = int(months)
+        
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'message': '请选择股票代码'
+            })
         
         print(f"🔍 开始相似度分析...")
         print(f"   股票代码: {stock_code}")
         print(f"   时间范围: {months}个月")
         
         # 获取股票数据
-        stock_data = system.get_stock_data(months, stock_code)
+        if not similarity_analyzer.prepare_data(months, stock_code):
+            return jsonify({
+                'success': False,
+                'message': f'无法获取股票{stock_code}数据'
+            })
+        
+        stock_data = similarity_analyzer.stock_data
+        gold_data = similarity_analyzer.gold_data
+        
         if stock_data is None or stock_data.empty:
             return jsonify({
                 'success': False,
                 'message': f'无法获取股票{stock_code}数据'
             })
         
-        # 获取金价数据
-        gold_data = system.get_gold_historical_data(months)
         if gold_data is None or gold_data.empty:
             return jsonify({
                 'success': False,
@@ -625,7 +680,7 @@ def analyze_similarity():
             'analysis_summary': analysis_result['analysis_summary'],
             'daily_similarity': analysis_result.get('daily_similarity', {}),
             'chart_data': similarity_chart_data,
-            'stock_name': system.get_stock_name(stock_code)
+            'stock_name': similarity_analyzer.get_stock_name(stock_code)
         })
         
     except Exception as e:
@@ -638,108 +693,101 @@ def analyze_similarity():
 @app.route('/api/current_status')
 def get_current_status():
     """获取当前策略状态 - 调用业务逻辑层"""
+    global current_loaded_stock
+    
     try:
         # 获取请求参数中的股票代码
-        stock_code = request.args.get('stock_code', '002155')
-        print(f"🔍 获取当前策略状态... 股票代码: {stock_code}")
-        print(f"📊 系统数据状态: data={system.data is not None and not system.data.empty if system.data is not None else 'None'}")
+        stock_code = request.args.get('stock_code')
         
-        # 检查是否需要重新准备数据
-        need_refresh = False
-        if system.data is None or system.data.empty:
-            print(f"⚠️ 系统数据为空，需要准备股票{stock_code}数据...")
-            need_refresh = True
-        else:
-            # 检查当前数据是否匹配请求的股票代码
-            # 这里我们简化处理：如果用户切换了股票，就重新获取数据
-            print(f"✅ 系统已有数据，形状: {system.data.shape}")
-            print(f"📊 最新收盘价: {system.data['收盘'].iloc[-1]}")
-            # 为了确保数据是最新的，我们总是重新获取数据
-            need_refresh = True
+        if not stock_code:
+            return jsonify({
+                'error': '请选择股票代码'
+            })
+        print(f"🔍 获取当前策略状态... 股票代码: {stock_code}")
+        print(f"📊 当前加载股票: {current_loaded_stock}")
+        print(f"📊 K线图分析器数据状态: data={similarity_analyzer.stock_data is not None and not similarity_analyzer.stock_data.empty if similarity_analyzer.stock_data is not None else 'None'}")
+        
+        # 每次都获取最新数据，不使用缓存
+        print(f"🔄 获取股票{stock_code}的最新实时数据...")
+        need_refresh = True
         
         if need_refresh:
             print(f"🔄 准备股票{stock_code}数据...")
-            if system.prepare_data(6, stock_code):
+            if data_provider.prepare_data(6, stock_code):
                 print("✅ 数据准备成功")
-                print(f"📊 准备后的数据形状: {system.data.shape}")
-                print(f"📊 准备后的最新收盘价: {system.data['收盘'].iloc[-1]}")
+                print(f"📊 准备后的数据形状: {data_provider.stock_data.shape}")
+                print(f"📊 准备后的最新收盘价: {data_provider.stock_data['收盘'].iloc[-1]}")
+                # 更新当前加载的股票代码
+                current_loaded_stock = stock_code
+                print(f"📊 已更新当前加载股票: {current_loaded_stock}")
             else:
                 print("❌ 数据准备失败，返回错误状态")
                 return jsonify({
-                    'error': f'无法获取股票{stock_code}数据，请检查股票代码或网络连接',
-                    'current_price': -1,
-                    'stock_change_rate': -1,
-                    'gold_price': -1,
-                    'gold_change_rate': -1,
-                    'position': {'has_position': False},
-                    'trade_count': 0,
-                    'base_investment': BASE_INVESTMENT,
-                    'stop_loss_rate': STOP_LOSS_RATE,
-                    'profit_take_rate': PROFIT_TAKE_RATE
+                    'error': f'无法获取股票{stock_code}数据，请检查股票代码或网络连接'
                 })
         
-        # 调用业务逻辑层获取状态
-        status = system.get_strategy_status()
-        print(f"📊 业务逻辑层返回状态: {status}")
+        # 调用数据提供者获取状态
+        print(f"🔄 调用数据提供者获取状态...")
+        status = data_provider.get_current_status()
+        print(f"📊 数据提供者返回状态: {status}")
         
         if status is None:
-            print("⚠️ 业务逻辑层返回None，使用默认状态")
-            # 如果没有数据，返回默认状态
+            print("❌ 业务逻辑层返回None")
+        else:
+            print(f"📊 状态数据详情: current_price={status.get('current_price', 'N/A')}, stock_change_rate={status.get('stock_change_rate', 'N/A')}")
+        
+        if status is None:
+            print("❌ 业务逻辑层返回None")
             return jsonify({
-                'current_price': 14.5,
-                'stock_change_rate': 0.0,
-                'gold_price': 2000.0,
-                'gold_change_rate': 0.0,
-                'position': {'has_position': False},
-                'trade_count': 0,
-                'base_investment': BASE_INVESTMENT,
-                'stop_loss_rate': STOP_LOSS_RATE,
-                'profit_take_rate': PROFIT_TAKE_RATE
+                'error': '无法获取股票状态数据，请重试'
             })
         
         # 检查关键数据是否有效
         if status.get('current_price', 0) == 0:
-            print("⚠️ 当前股价为0，使用默认值")
-            status['current_price'] = 14.5
-            status['stock_change_rate'] = 0.0
+            print("❌ 当前股价为0，数据异常")
+            return jsonify({
+                'error': '股票价格数据异常，请重试'
+            })
         
         # 处理NaN值，确保JSON序列化正常
         def clean_nan(value):
-            """清理NaN值，替换为0或默认值"""
+            """清理NaN值，如果为NaN则报错"""
             import math
             if isinstance(value, float) and math.isnan(value):
-                return 0.0
+                raise ValueError(f"数据包含NaN值: {value}")
             return value
         
+        # 检查数据完整性
+        required_fields = ['current_price', 'stock_change_rate', 'gold_price', 'gold_change_rate']
+        for field in required_fields:
+            if field not in status:
+                return jsonify({
+                    'error': f'缺少必要数据字段: {field}'
+                })
+        
         # 清理所有可能包含NaN的值
-        cleaned_status = {
-            'current_price': clean_nan(status['current_price']),
-            'stock_change_rate': clean_nan(status['stock_change_rate']),
-            'gold_price': clean_nan(status['gold_price']),
-            'gold_change_rate': clean_nan(status['gold_change_rate']),
-            'trade_count': status['trade_count'],
-            'base_investment': status['base_investment'],
-            'stop_loss_rate': status['stop_loss_rate'],
-            'profit_take_rate': status['profit_take_rate']
-        }
+        try:
+            cleaned_status = {
+                'current_price': clean_nan(status['current_price']),
+                'stock_change_rate': clean_nan(status['stock_change_rate']),
+                'gold_price': clean_nan(status['gold_price']),
+                'gold_change_rate': clean_nan(status['gold_change_rate']),
+                'trade_count': status.get('trade_count', 0),
+                'base_investment': status.get('base_investment', 0),
+                'stop_loss_rate': status.get('stop_loss_rate', 0),
+                'profit_take_rate': status.get('profit_take_rate', 0)
+            }
+        except ValueError as e:
+            return jsonify({
+                'error': f'数据异常: {str(e)}'
+            })
         
         # 计算持仓状态
-        position_info = {}
-        if system.current_position:
-            buy_price = clean_nan(system.current_position['buy_price'])
-            current_price = clean_nan(status['current_price'])
-            current_profit_rate = clean_nan((current_price - buy_price) / buy_price if buy_price != 0 else 0.0)
-            
-            position_info = {
-                'has_position': True,
-                'buy_price': buy_price,
-                'shares': clean_nan(system.current_position['shares']),
-                'amount': clean_nan(system.current_position.get('amount', 0)),
-                'current_profit_rate': current_profit_rate,
-                'max_profit_rate': clean_nan(system.current_position.get('max_profit_rate', 0))
-            }
-        else:
-            position_info = {'has_position': False}
+        position_info = status.get('position', {})
+        if not position_info:
+            return jsonify({
+                'error': '缺少持仓状态数据'
+            })
         
         cleaned_status['position'] = position_info
         
@@ -755,7 +803,8 @@ def get_current_status():
 @app.route('/api/trade_history')
 def get_trade_history():
     """获取交易历史"""
-    return jsonify(system.trade_history)
+    # 这里可以添加交易历史获取逻辑
+    return jsonify([])
 
 @app.route('/download/<filename>')
 def download_file(filename):
@@ -771,18 +820,54 @@ def execute_strategy():
     try:
         data = request.get_json()
         
-        # 获取策略参数
-        base_investment = data.get('base_investment', 10000)
-        stop_loss_rate = data.get('stop_loss_rate', 0.10)
-        max_profit_rate = data.get('max_profit_rate', 0.05)
-        profit_callback_rate = data.get('profit_callback_rate', 0.01)
-        stock_code = data.get('stock_code', '002155')
-        strategy_mode = data.get('strategy_mode', 'improved')
+        # 获取策略参数 - 所有参数都必须提供
+        base_investment = data.get('base_investment')
+        stop_loss_rate = data.get('stop_loss_rate')
+        max_profit_rate = data.get('max_profit_rate')
+        profit_callback_rate = data.get('profit_callback_rate')
+        stock_code = data.get('stock_code')
+        strategy_mode = data.get('strategy_mode')
         
-        # 获取高级参数
-        min_gold_change = data.get('min_gold_change', 2.0) / 100  # 转换为小数
-        min_buy_amount = data.get('min_buy_amount', 1000)
-        transaction_cost_rate = data.get('transaction_cost_rate', 0.1) / 100  # 转换为小数
+        # 检查必要参数
+        required_params = {
+            'base_investment': base_investment,
+            'stop_loss_rate': stop_loss_rate,
+            'max_profit_rate': max_profit_rate,
+            'profit_callback_rate': profit_callback_rate,
+            'stock_code': stock_code,
+            'strategy_mode': strategy_mode
+        }
+        
+        missing_params = [param for param, value in required_params.items() if value is None]
+        if missing_params:
+            return jsonify({
+                'success': False,
+                'error': f'缺少必要参数: {", ".join(missing_params)}'
+            })
+        
+        # 获取高级参数 - 所有参数都必须提供
+        min_gold_change = data.get('min_gold_change')
+        min_buy_amount = data.get('min_buy_amount')
+        transaction_cost_rate = data.get('transaction_cost_rate')
+        
+        # 检查高级参数
+        advanced_params = {
+            'min_gold_change': min_gold_change,
+            'min_buy_amount': min_buy_amount,
+            'transaction_cost_rate': transaction_cost_rate
+        }
+        
+        missing_advanced = [param for param, value in advanced_params.items() if value is None]
+        if missing_advanced:
+            return jsonify({
+                'success': False,
+                'error': f'缺少高级参数: {", ".join(missing_advanced)}'
+            })
+        
+        # 转换数据类型
+        min_gold_change = float(min_gold_change) / 100  # 转换为小数
+        min_buy_amount = float(min_buy_amount)
+        transaction_cost_rate = float(transaction_cost_rate) / 100  # 转换为小数
         
         print(f"执行策略参数:")
         print(f"  策略模式: {strategy_mode}")

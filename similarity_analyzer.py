@@ -14,26 +14,23 @@ K线图走势相似度分析器
 最终输出：0-100的相似度分数，以及详细的可视化数据
 """
 
+import sys
+import os
 import numpy as np
 import pandas as pd
 from scipy import stats
-from scipy.spatial.distance import euclidean
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.metrics import mean_squared_error
+from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
-# 尝试导入tslearn库，如果没有则使用自定义DTW实现
-try:
-    from tslearn.metrics import dtw
-    HAS_TSLEARN = True
-    print("Using tslearn library for DTW calculation")
-except ImportError:
-    HAS_TSLEARN = False
-    print("tslearn library not installed, using custom DTW implementation")
+# 添加akshare源码目录到Python路径
+sys.path.insert(0, os.path.abspath('./akshare'))
+import akshare as ak
 
-class KlineSimilarityAnalyzer:
+# 使用tslearn库进行DTW计算 - 专业的时间序列分析库
+from tslearn.metrics import dtw
+
+class SimilarityAnalyzer:
     """
     K线图走势相似度分析器
     
@@ -60,8 +57,251 @@ class KlineSimilarityAnalyzer:
             'volume': 0.10           # 成交量关系
         }
         
+        # 数据存储
+        self.stock_data = None
+        self.gold_data = None
+        
         print("K线图走势相似度分析器初始化完成")
         print(f"权重配置: {self.weights}")
+    
+    def prepare_data(self, months=6, stock_code='002155'):
+        """
+        准备K线图分析数据
+        
+        功能：
+        1. 获取股票历史数据
+        2. 获取金价历史数据
+        3. 数据清洗和格式化
+        4. 数据类型转换
+        
+        Args:
+            months (int): 数据月数
+            stock_code (str): 股票代码
+            
+        Returns:
+            bool: 数据准备是否成功
+        """
+        print(f"🔄 正在准备K线图分析数据...")
+        
+        try:
+            # 获取股票数据
+            self.stock_data = self.get_stock_data(months, stock_code)
+            
+            if self.stock_data.empty:
+                print(f"❌ 股票{stock_code}数据为空")
+                return False
+                
+        except Exception as e:
+            print(f"❌ 准备股票{stock_code}数据失败: {e}")
+            return False
+        
+        # 股票数据预处理
+        print("🔧 正在处理股票数据...")
+        self.stock_data['日期'] = pd.to_datetime(self.stock_data['日期'])
+        self.stock_data = self.stock_data.set_index('日期')
+        self.stock_data = self.stock_data.sort_index()
+        
+        # 确保OHLC数据为数值类型
+        numeric_columns = ['开盘', '最高', '最低', '收盘', '成交量']
+        for col in numeric_columns:
+            if col in self.stock_data.columns:
+                self.stock_data[col] = pd.to_numeric(self.stock_data[col], errors='coerce')
+        
+        # 删除包含NaN的行
+        self.stock_data = self.stock_data.dropna()
+        
+        print(f"✅ 股票数据准备完成，形状: {self.stock_data.shape}")
+        print(f"📊 股票价格范围: {self.stock_data['收盘'].min():.2f} - {self.stock_data['收盘'].max():.2f}")
+        
+        # 获取伦敦金数据
+        print(f"🥇 正在准备伦敦金数据...")
+        self.gold_data = self.get_gold_data(months)
+        
+        if not self.gold_data.empty:
+            # 伦敦金数据预处理
+            print("🔧 正在处理伦敦金数据...")
+            
+            # 确保OHLC数据为数值类型
+            numeric_columns = ['开盘', '最高', '最低', '收盘', '成交量']
+            for col in numeric_columns:
+                if col in self.gold_data.columns:
+                    self.gold_data[col] = pd.to_numeric(self.gold_data[col], errors='coerce')
+            
+            # 删除包含NaN的行
+            self.gold_data = self.gold_data.dropna()
+            
+            print(f"✅ 伦敦金数据准备完成，形状: {self.gold_data.shape}")
+            print(f"📊 伦敦金价格范围: ${self.gold_data['收盘'].min():.2f} - ${self.gold_data['收盘'].max():.2f}")
+        else:
+            print("⚠️ 伦敦金数据为空，将使用空数据")
+        
+        return True
+    
+    def get_stock_data(self, months=6, stock_code='002155'):
+        """
+        获取股票历史数据
+        
+        Args:
+            months (int): 获取数据的月数，默认6个月
+            stock_code (str): 股票代码，默认002155（湖南黄金）
+            
+        Returns:
+            pd.DataFrame: 股票历史数据，包含OHLCV数据
+        """
+        print(f"📊 正在获取股票{stock_code}近{months}个月的历史数据...")
+        
+        # 计算日期范围
+        end_date = datetime.now().strftime('%Y%m%d')
+        start_date = (datetime.now() - timedelta(days=months*30)).strftime('%Y%m%d')
+        
+        try:
+            # 使用akshare获取股票数据
+            stock_data = ak.stock_zh_a_hist(
+                symbol=stock_code,
+                period="daily",
+                start_date=start_date,
+                end_date=end_date,
+                adjust="qfq"  # 前复权
+            )
+            
+            if stock_data.empty:
+                print(f"❌ 未获取到股票{stock_code}的数据")
+                raise Exception(f"无法获取股票{stock_code}的历史数据")
+            
+            # 确保索引是datetime类型
+            if not isinstance(stock_data.index, pd.DatetimeIndex):
+                print(f"⚠️ 股票{stock_code}索引不是DatetimeIndex，尝试转换...")
+                stock_data.index = pd.to_datetime(stock_data.index)
+            
+            print(f"✅ 成功获取股票{stock_code}的 {len(stock_data)} 条数据")
+            print(f"📈 数据时间范围: {stock_data['日期'].min()} 到 {stock_data['日期'].max()}")
+            return stock_data
+            
+        except Exception as e:
+            print(f"❌ 获取股票{stock_code}数据出错: {e}")
+            raise e
+    
+    def get_gold_data(self, months=6):
+        """
+        获取伦敦金历史数据
+        
+        Args:
+            months (int): 获取数据的月数，默认6个月
+            
+        Returns:
+            pd.DataFrame: 伦敦金历史数据，包含OHLCV格式
+        """
+        print(f"🥇 正在获取伦敦金近{months}个月的历史数据...")
+        
+        try:
+            # 使用akshare获取伦敦金数据 - 使用XAU黄金期货数据
+            gold_data = ak.futures_foreign_hist(symbol="XAU")
+            
+            if gold_data.empty:
+                print("❌ 未获取到伦敦金数据")
+                return pd.DataFrame()
+            
+            print(f"🔍 原始伦敦金数据列名: {gold_data.columns.tolist()}")
+            print(f"🔍 原始伦敦金数据形状: {gold_data.shape}")
+            print(f"🔍 原始伦敦金数据示例:")
+            print(gold_data.head(3))
+            
+            # 数据预处理 - 适配futures_foreign_hist的数据格式
+            # 该接口返回的是日度数据，需要转换为标准OHLCV格式
+            if '日期' in gold_data.columns:
+                # 将日期转换为日期索引
+                gold_data['日期'] = pd.to_datetime(gold_data['日期'])
+                gold_data = gold_data.set_index('日期')
+            elif 'date' in gold_data.columns:
+                gold_data['date'] = pd.to_datetime(gold_data['date'])
+                gold_data = gold_data.set_index('date')
+            else:
+                # 如果没有日期列，使用索引
+                gold_data.index = pd.to_datetime(gold_data.index)
+            
+            gold_data = gold_data.sort_index()
+            
+            # 获取最近N个月的数据
+            cutoff_date = datetime.now() - timedelta(days=months*30)
+            gold_data = gold_data[gold_data.index >= cutoff_date]
+            
+            # 检查并映射列名到标准OHLCV格式
+            column_mapping = {
+                'open': '开盘',
+                'high': '最高', 
+                'low': '最低',
+                'close': '收盘',
+                'volume': '成交量'
+            }
+            
+            # 如果列名是英文，映射为中文
+            for eng_col, chn_col in column_mapping.items():
+                if eng_col in gold_data.columns and chn_col not in gold_data.columns:
+                    gold_data[chn_col] = gold_data[eng_col]
+                    print(f"✅ 映射列 {eng_col} -> {chn_col}")
+            
+            # 检查必要的列是否存在
+            required_columns = ['开盘', '最高', '最低', '收盘', '成交量']
+            missing_columns = [col for col in required_columns if col not in gold_data.columns]
+            
+            if missing_columns:
+                print(f"⚠️ 伦敦金数据缺少列: {missing_columns}")
+                print(f"🔍 可用列: {gold_data.columns.tolist()}")
+                
+                # 如果缺少成交量，生成模拟数据
+                if '成交量' not in gold_data.columns:
+                    import numpy as np
+                    gold_data['成交量'] = np.random.randint(1000, 10000, len(gold_data))
+                    print(f"✅ 已生成模拟成交量数据")
+                
+                # 如果缺少其他OHLC列，使用收盘价生成
+                for col in ['开盘', '最高', '最低']:
+                    if col not in gold_data.columns and '收盘' in gold_data.columns:
+                        if col == '开盘':
+                            gold_data[col] = gold_data['收盘'] * (0.98 + 0.04 * np.random.random(len(gold_data)))
+                        elif col == '最高':
+                            gold_data[col] = gold_data['收盘'] * (1 + 0.02 * np.random.random(len(gold_data)))
+                        elif col == '最低':
+                            gold_data[col] = gold_data['收盘'] * (1 - 0.02 * np.random.random(len(gold_data)))
+                        print(f"✅ 已生成模拟{col}数据")
+            
+            print(f"✅ 伦敦金数据处理完成")
+            print(f"📊 最终列名: {gold_data.columns.tolist()}")
+            print(f"📊 数据示例:")
+            print(gold_data[['开盘', '最高', '最低', '收盘', '成交量']].head(3))
+            
+            print(f"✅ 成功获取伦敦金 {len(gold_data)} 条数据")
+            if not gold_data.empty:
+                print(f"📈 数据时间范围: {gold_data.index.min()} 到 {gold_data.index.max()}")
+                print(f"📊 最终列名: {gold_data.columns.tolist()}")
+            return gold_data
+            
+        except Exception as e:
+            print(f"❌ 获取伦敦金数据出错: {e}")
+            import traceback
+            traceback.print_exc()
+            return pd.DataFrame()
+    
+    
+    def get_stock_name(self, stock_code):
+        """
+        根据股票代码获取股票名称
+        
+        Args:
+            stock_code (str): 股票代码
+            
+        Returns:
+            str: 股票名称
+        """
+        stock_names = {
+            '002155': '湖南黄金',
+            '600547': '山东黄金',
+            '000975': '银泰黄金',
+            '600489': '中金黄金',
+            '002237': '恒邦股份',
+            '600988': '赤峰黄金'
+        }
+        return stock_names.get(stock_code, f'股票{stock_code}')
     
     def preprocess_data(self, stock_data, gold_data):
         """
@@ -305,13 +545,8 @@ class KlineSimilarityAnalyzer:
             stock_normalized = stock_normalized[:min_length]
             gold_normalized = gold_normalized[:min_length]
             
-            # 计算DTW距离
-            if HAS_TSLEARN:
-                # 使用tslearn库的DTW实现
-                dtw_distance = dtw(stock_normalized, gold_normalized)
-            else:
-                # 使用自定义DTW实现
-                dtw_distance = self._dtw_distance(stock_normalized, gold_normalized)
+            # 计算DTW距离 - 使用tslearn专业库
+            dtw_distance = dtw(stock_normalized, gold_normalized)
             
             # 将DTW距离转换为相似度分数
             # DTW距离越小，相似度越高
@@ -583,26 +818,6 @@ class KlineSimilarityAnalyzer:
         ratio = min(abs(slope1), abs(slope2)) / max(abs(slope1), abs(slope2))
         return ratio * 100
     
-    def _dtw_distance(self, seq1, seq2):
-        """计算DTW距离"""
-        n, m = len(seq1), len(seq2)
-        dtw_matrix = np.zeros((n + 1, m + 1))
-        
-        # 初始化
-        dtw_matrix[0, 1:] = np.inf
-        dtw_matrix[1:, 0] = np.inf
-        
-        # 计算DTW距离
-        for i in range(1, n + 1):
-            for j in range(1, m + 1):
-                cost = (seq1[i-1] - seq2[j-1]) ** 2
-                dtw_matrix[i, j] = cost + min(
-                    dtw_matrix[i-1, j],      # 插入
-                    dtw_matrix[i, j-1],      # 删除
-                    dtw_matrix[i-1, j-1]     # 匹配
-                )
-        
-        return np.sqrt(dtw_matrix[n, m])
     
     def _generate_analysis_summary(self, scores, comprehensive_score):
         """生成分析摘要"""
@@ -647,14 +862,9 @@ def test_similarity_analyzer():
     gold_data.set_index('日期', inplace=True)
     
     # 创建分析器并测试
-    analyzer = KlineSimilarityAnalyzer()
+    analyzer = SimilarityAnalyzer()
     result = analyzer.calculate_comprehensive_similarity(stock_data, gold_data)
     
     print("测试完成!")
     return result
 
-
-if __name__ == "__main__":
-    # 运行测试
-    test_result = test_similarity_analyzer()
-    print(f"\n测试结果: {test_result['comprehensive_score']}/100")

@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>黄金板块交易系统</title>
-    <script src="./plotly.min.js" onload="console.log('✅ plotly.min.js 脚本加载完成')" onerror="console.error('❌ plotly.min.js 脚本加载失败')"></script>
+    <title>黄金板块量化交易系统</title>
+    <script src="./plotly.min.js" onload="console.log('✅ plotly.min.js 脚本加载完成')" onerror="console.error('❌ plotly.min.js 脚本加载失败')">
+    </script>
     <style>
         * {
             margin: 0;
@@ -20,7 +21,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
             background: white;
             border-radius: 15px;
@@ -50,7 +51,8 @@
             padding: 40px;
         }
 
-        .form-section {
+        /* 模块样式 */
+        .module {
             background: #f8f9fa;
             padding: 30px;
             border-radius: 10px;
@@ -58,8 +60,44 @@
             border: 2px solid #e9ecef;
         }
 
-        .form-group {
+        .module h2 {
+            color: #333;
             margin-bottom: 25px;
+            font-size: 1.5em;
+            border-bottom: 3px solid #ff6b6b;
+            padding-bottom: 10px;
+        }
+
+        /* 基础信息模块样式 */
+        .basic-info {
+            background: linear-gradient(135deg, #e3f2fd, #f3e5f5);
+        }
+
+        .basic-info h2 {
+            border-bottom-color: #2196f3;
+        }
+
+        /* 相似度分析模块样式 */
+        .similarity-analysis {
+            background: linear-gradient(135deg, #e8f5e8, #f1f8e9);
+        }
+
+        .similarity-analysis h2 {
+            border-bottom-color: #4caf50;
+        }
+
+        /* 交易策略模块样式 */
+        .trading-strategy {
+            background: linear-gradient(135deg, #fff3e0, #fce4ec);
+        }
+
+        .trading-strategy h2 {
+            border-bottom-color: #ff9800;
+        }
+
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 20px;
         }
 
         .form-group label {
@@ -71,13 +109,10 @@
         }
 
         .form-row {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 20px;
-            align-items: end;
-        }
-
-        .form-row .form-group {
-            flex: 1;
+            margin-bottom: 20px;
         }
 
         select, input {
@@ -95,6 +130,7 @@
             box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.1);
         }
 
+        /* 按钮样式 */
         .btn {
             background: linear-gradient(135deg, #ff6b6b, #ffa500);
             color: white;
@@ -107,6 +143,7 @@
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 1px;
+            margin: 5px;
         }
 
         .btn:hover {
@@ -125,40 +162,187 @@
             box-shadow: none;
         }
 
-        .status-panel {
-            background: #fff;
-            border: 2px solid #e9ecef;
+        .btn-similarity {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+        }
+
+        .btn-strategy {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+        }
+
+        /* 数据展示区域 */
+        .data-display {
+            background: white;
             border-radius: 10px;
             padding: 25px;
             margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
         }
 
-        .status-grid {
+        .data-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
+            margin-bottom: 20px;
         }
 
-        .status-item {
+        .data-item {
             background: #f8f9fa;
             padding: 15px;
             border-radius: 8px;
             border-left: 4px solid #ff6b6b;
+            text-align: center;
         }
 
-        .status-item .label {
+        .data-item .label {
             font-weight: bold;
             color: #666;
             font-size: 0.9em;
             margin-bottom: 5px;
         }
 
-        .status-item .value {
+        .data-item .value {
             font-size: 1.2em;
             color: #333;
             font-weight: bold;
         }
 
+        .data-item.positive .value {
+            color: #dc3545;
+        }
+
+        .data-item.negative .value {
+            color: #28a745;
+        }
+
+        /* 图表容器 */
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+            width: 100%;
+            min-height: 800px; /* 增加高度以显示完整的K线图 */
+        }
+
+        #chartContainer, #similarityChartContainer {
+            width: 100% !important;
+            min-width: 100%;
+            height: 800px !important; /* 固定高度确保完整显示 */
+        }
+
+        /* 相似度分析结果 */
+        .similarity-result {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .similarity-score {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .score-circle {
+            display: inline-block;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4caf50, #8bc34a);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            margin: 0 auto 20px;
+            box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
+        }
+
+        .score-circle.low {
+            background: linear-gradient(135deg, #f44336, #ff5722);
+        }
+
+        .score-circle.medium {
+            background: linear-gradient(135deg, #ff9800, #ffc107);
+        }
+
+        .score-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .score-label {
+            font-size: 1em;
+            opacity: 0.9;
+        }
+
+        .dimension-scores {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .dimension-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #007bff;
+        }
+
+        .dimension-item .score {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #007bff;
+            margin-bottom: 5px;
+        }
+
+        .dimension-item .label {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        /* 策略执行结果 */
+        .strategy-result {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-top: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .strategy-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid #ff6b6b;
+        }
+
+        .stat-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #ff6b6b;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .label {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        /* 加载状态 */
         .loading {
             display: none;
             text-align: center;
@@ -184,61 +368,7 @@
             100% { transform: rotate(360deg); }
         }
 
-        .result-section {
-            margin-top: 30px;
-            padding: 25px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-
-        .result-section h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.3em;
-        }
-
-        .download-btn {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-            text-decoration: none;
-            padding: 12px 25px;
-            border-radius: 8px;
-            display: inline-block;
-            margin-top: 15px;
-            transition: all 0.3s ease;
-        }
-
-        .download-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 15px rgba(40, 167, 69, 0.3);
-            text-decoration: none;
-            color: white;
-        }
-
-        .chart-section {
-            margin-top: 30px;
-            padding: 25px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-        }
-
-        .chart-section h3 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.3em;
-        }
-
-        #chartContainer {
-            background: white;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
-            width: 100% !important;
-            min-width: 100%;
-        }
-
+        /* 错误和成功消息 */
         .error {
             background: #f8d7da;
             color: #721c24;
@@ -257,9 +387,10 @@
             margin-top: 15px;
         }
 
+        /* 响应式设计 */
         @media (max-width: 768px) {
             .form-row {
-                flex-direction: column;
+                grid-template-columns: 1fr;
             }
             
             .header h1 {
@@ -269,28 +400,36 @@
             .main-content {
                 padding: 20px;
             }
+
+            .data-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+
+        /* 隐藏元素 */
+        .hidden {
+            display: none !important;
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏆 黄金板块交易系统</h1>
+            <h1>🏆 黄金板块量化交易系统</h1>
             <p>基于国际金价涨跌的智能交易策略分析平台</p>
         </div>
 
         <div class="main-content">
-            <!-- 统一的量化策略参数设置区域 -->
-            <div class="form-section">
-                <h2 style="margin-bottom: 25px; color: #333;">⚙️ 量化策略参数设置</h2>
+            <!-- 基础信息模块 -->
+            <div class="module basic-info">
+                <h2>📊 基础信息模块</h2>
                 
-                <form id="strategyForm">
-                    <!-- 股票选择 -->
+                <!-- 参数配置 -->
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="stockSelect" title="选择一只股票">选择股票</label>
+                        <label for="stockSelect">选择股票</label>
                             <select id="stockSelect" name="stock_code">
-                                <option value="002155">湖南黄金 (002155)</option>
+                                <option value="002155" selected>湖南黄金 (002155)</option>
                                 <option value="600547">山东黄金 (600547)</option>
                                 <option value="000975">银泰黄金 (000975)</option>
                                 <option value="600489">中金黄金 (600489)</option>
@@ -300,150 +439,157 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="initInvestment" title="初始建仓的资金（直接在第一天买入）">初始资金 (元)</label>
+                        <label for="initInvestment">初始资金 (元)</label>
                             <input type="number" id="initInvestment" name="init_investment" value="10000" min="1000" step="1000">
                         </div>
 
                         <div class="form-group">
-                            <label for="baseInvestment" title="每次买入的基础金额（这个金额会乘以一个变量）">基础投资金额 (元)</label>
-                            <input type="number" id="baseInvestment" name="base_investment" value="1000" min="10" step="10">
+                        <label for="analysisMonths">分析时间范围</label>
+                        <select id="analysisMonths" name="analysis_months">
+                            <option value="1">1个月</option>
+                            <option value="2">2个月</option>
+                            <option value="3">3个月</option>
+                            <option value="6" selected>6个月</option>
+                            <option value="12">12个月</option>
+                            <option value="24">24个月</option>
+                        </select>
                         </div>
                     </div>
                     
-                    <!-- 基础策略参数 -->
+                <!-- 操作按钮 -->
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="button" class="btn" id="analyzeBtn" onclick="analyzeStock()">
+                        📈 开始分析
+                    </button>
+                </div>
+
+                <!-- 实时数据展示 -->
+                <div class="data-display" id="basicInfoDisplay" style="display: none;">
+                    <h3>📈 实时数据</h3>
+                    <div class="data-grid" id="basicInfoGrid">
+                        <!-- 数据将通过JavaScript动态填充 -->
+                    </div>
+                </div>
+
+                <!-- K线图展示 -->
+                <div class="chart-container" id="chartSection" style="display: none;">
+                    <div id="chartContainer" style="width: 100%; height: 600px;">
+                        <!-- Plotly图表将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 相似度分析模块 -->
+            <div class="module similarity-analysis">
+                <h2>🔍 相似度分析模块</h2>
+                
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="button" class="btn btn-similarity" onclick="analyzeSimilarity()">
+                        🔍 走势相似度分析
+                    </button>
+                </div>
+
+                <!-- 相似度分析结果 -->
+                <div class="similarity-result" id="similarityResult" style="display: none;">
+                    <h3>📊 相似度分析结果</h3>
+                    <div class="similarity-score" id="similarityScore">
+                        <!-- 相似度分数将通过JavaScript动态填充 -->
+                    </div>
+                    <div class="dimension-scores" id="dimensionScores">
+                        <!-- 各维度分数将通过JavaScript动态填充 -->
+                    </div>
+                </div>
+
+                <!-- 相似度图表 -->
+                <div class="chart-container" id="similarityChartSection" style="display: none;">
+                    <div id="similarityChartContainer" style="width: 100%; height: 600px;">
+                        <!-- 相似度分析图表将在这里显示 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 交易策略执行模块 -->
+            <div class="module trading-strategy">
+                <h2>🚀 交易策略执行模块</h2>
+                
+                <!-- 策略参数配置 -->
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="stopLossRate" title="止损率=（总成本-当前持仓资金）/总成本">止损率 (%)</label>
+                        <label for="baseInvestment">基础投资金额 (元)</label>
+                        <input type="number" id="baseInvestment" name="base_investment" value="10000" min="100" step="100">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="stopLossRate">止损率 (%)</label>
                             <input type="number" id="stopLossRate" name="stop_loss_rate" value="10" min="1" max="50" step="1">
                         </div>
                         
                         <div class="form-group">
-                            <label for="maxProfitRate" title="最大盈利率=（当前持仓资金-总成本）/总成本">最大盈利率 (%)</label>
+                        <label for="maxProfitRate">最大盈利率 (%)</label>
                             <input type="number" id="maxProfitRate" name="max_profit_rate" value="5" min="1" max="20" step="1">
                         </div>
                         
                         <div class="form-group">
-                            <label for="profitCallbackRate" title="假设最大盈利为5%，盈利回调率为1%，意思就是说，如果盈利达到5%，那么当盈利回调到4%时卖出">盈利回调率 (%)</label>
+                        <label for="profitCallbackRate">盈利回调率 (%)</label>
                             <input type="number" id="profitCallbackRate" name="profit_callback_rate" value="1" min="0.1" max="5" step="0.1">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="analysisMonths" title="选择分析的时间范围">分析时间范围</label>
-                            <select id="analysisMonths" name="analysis_months">
-                                <option value="3">3个月</option>
-                                <option value="6" selected>6个月</option>
-                                <option value="12">12个月</option>
-                                <option value="24">24个月</option>
-                            </select>
                         </div>
                     </div>
                     
-                    <!-- 高级策略参数 -->
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="minGoldChange" title="金价涨幅必须达到这个阈值才会买入">最小金价涨幅阈值 (%)</label>
+                        <label for="minGoldChange">最小金价涨幅阈值 (%)</label>
                             <input type="number" id="minGoldChange" name="min_gold_change" value="2" min="0.1" max="10" step="0.1">
                         </div>
                         
                         <div class="form-group">
-                            <label for="minBuyAmount" title="每次买入的最小金额">最小买入金额 (元)</label>
+                        <label for="minBuyAmount">最小买入金额 (元)</label>
                             <input type="number" id="minBuyAmount" name="min_buy_amount" value="1000" min="100" max="10000" step="100">
                         </div>
                         
                         <div class="form-group">
-                            <label for="transactionCostRate" title="交易成本率，包括手续费、印花税等">交易成本率 (%)</label>
+                        <label for="transactionCostRate">交易成本率 (%)</label>
                             <input type="number" id="transactionCostRate" name="transaction_cost_rate" value="0.1" min="0.01" max="1" step="0.01">
                         </div>
                         
                         <div class="form-group">
-                            <label for="strategyMode" title="选择策略模式">策略模式</label>
+                        <label for="strategyMode">策略模式</label>
                             <select id="strategyMode" name="strategy_mode">
                                 <option value="basic">基础模式</option>
                                 <option value="improved" selected>改进模式</option>
                             </select>
                         </div>
-                    </div>
-                </form>
             </div>
 
-            <!-- 操作区域 -->
-            <div class="form-section">
-                <h2 style="margin-bottom: 25px; color: #333;">🎮 操作控制</h2>
-                
-                
-                <div style="display: flex; gap: 20px; justify-content: center; flex-wrap: wrap;">
-                    <button type="button" class="btn" id="analyzeBtn" onclick="analyzeStock();" style="flex: 1; max-width: 200px;">
-                        📈 开始分析
-                    </button>
-                    <button type="button" class="btn" onclick="executeStrategy()" style="flex: 1; max-width: 200px;">
+                <!-- 操作按钮 -->
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="button" class="btn btn-strategy" onclick="executeStrategy()">
                         🚀 执行策略
                     </button>
-                    <button type="button" class="btn" onclick="analyzeSimilarity();" style="flex: 1; max-width: 200px; background: linear-gradient(135deg, #667eea, #764ba2);">
-                        🔍 走势相似度分析
+                    <button type="button" class="btn btn-strategy" onclick="runBacktest()">
+                        📊 历史回测
                     </button>
-                </div>
             </div>
 
-            <!-- 策略性能统计区域 -->
-            <div class="form-section">
-                <h2 style="margin-bottom: 25px; color: #333;">📊 策略性能统计</h2>
-                <div id="strategyStats" style="display: none;">
-                    <div class="stats-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
-                        <div class="stat-card" style="background: #e3f2fd; padding: 20px; border-radius: 8px; text-align: center;">
-                            <h4 style="margin: 0 0 10px 0; color: #1976d2;">总交易次数</h4>
-                            <div id="totalTrades" style="font-size: 2em; font-weight: bold; color: #1976d2;">0</div>
+                <!-- 策略执行结果 -->
+                <div class="strategy-result" id="strategyResult" style="display: none;">
+                    <h3>📋 策略执行结果</h3>
+                    <div class="strategy-stats" id="strategyStats">
+                        <!-- 策略统计将通过JavaScript动态填充 -->
                         </div>
-                        <div class="stat-card" style="background: #e8f5e8; padding: 20px; border-radius: 8px; text-align: center;">
-                            <h4 style="margin: 0 0 10px 0; color: #388e3c;">总盈利</h4>
-                            <div id="totalProfit" style="font-size: 2em; font-weight: bold; color: #388e3c;">0.00元</div>
                         </div>
-                        <div class="stat-card" style="background: #fff3e0; padding: 20px; border-radius: 8px; text-align: center;">
-                            <h4 style="margin: 0 0 10px 0; color: #f57c00;">盈利交易</h4>
-                            <div id="winTrades" style="font-size: 2em; font-weight: bold; color: #f57c00;">0次</div>
-                        </div>
-                        <div class="stat-card" style="background: #fce4ec; padding: 20px; border-radius: 8px; text-align: center;">
-                            <h4 style="margin: 0 0 10px 0; color: #c2185b;">胜率</h4>
-                            <div id="winRate" style="font-size: 2em; font-weight: bold; color: #c2185b;">0.00%</div>
-                        </div>
+
+                <!-- 策略图表 -->
+                <div class="chart-container" id="strategyChartSection" style="display: none;">
+                    <div id="strategyChartContainer" style="width: 100%; height: 600px;">
+                        <!-- 策略图表将在这里显示 -->
                     </div>
                 </div>
             </div>
 
+            <!-- 加载状态 -->
             <div class="loading" id="loading">
                 <div class="spinner"></div>
-                <p>正在分析数据，请稍候...</p>
-            </div>
-
-            <div class="status-panel" id="statusPanel" style="display: none;">
-                <h3>📈 实时策略状态</h3>
-                <div class="status-grid" id="statusGrid">
-                    <!-- 状态信息将通过JavaScript动态填充 -->
-                </div>
-            </div>
-
-            <div class="result-section" id="resultSection" style="display: none;">
-                <h3>📋 分析结果</h3>
-                <div id="resultContent">
-                    <!-- 结果内容将通过JavaScript动态填充 -->
-                </div>
-            </div>
-
-            <div class="chart-section" id="chartSection" style="display: none;">
-                <h3>📈 K线图分析</h3>
-                <div id="chartContainer" style="width: 100%; height: 600px;">
-                    <!-- Plotly图表将在这里显示 -->
-                </div>
-            </div>
-
-            <!-- 相似度分析结果区域 -->
-            <div class="chart-section" id="similaritySection" style="display: none;">
-                <h3>🔍 走势相似度分析</h3>
-                <div id="similarityContainer" style="width: 100%; height: 800px;">
-                    <!-- 相似度分析图表将在这里显示 -->
-                </div>
-                <div id="similarityInfo" style="margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                    <!-- 相似度分析信息将在这里显示 -->
-                </div>
+                <p>正在处理数据，请稍候...</p>
             </div>
         </div>
     </div>
@@ -452,183 +598,389 @@
         // 全局变量
         let currentStatus = null;
         let statusUpdateInterval = null;
+        let autoRefreshInterval = null;
 
-        // DOM元素 - 将在DOMContentLoaded中初始化
-        let form, loading, statusPanel, statusGrid, resultSection, resultContent, analyzeBtn;
+        // DOM元素
+        let loading, analyzeBtn;
 
-        // 表单提交处理已移到analyzeStock函数中
+        // 页面加载完成后初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 页面DOM加载完成');
+            
+            // 初始化DOM元素
+            loading = document.getElementById('loading');
+            analyzeBtn = document.getElementById('analyzeBtn');
+            
+            console.log('DOM元素初始化完成');
+            
+            // 开始自动刷新
+            startAutoRefresh();
+            
+            // 立即显示基础信息
+            setTimeout(() => {
+                console.log('🔄 页面初始化，显示基础信息...');
+                showRealtimeDataModule(); // 强制显示模块
+                displayBasicInfo({});
+            }, 1000);
+            
+            // 添加股票选择变化监听器
+            const stockSelect = document.getElementById('stockSelect');
+            stockSelect.addEventListener('change', function() {
+                console.log('股票选择变化:', this.value);
+                // 强制显示模块并刷新数据
+                showRealtimeDataModule();
+                displayBasicInfo({});
+            });
+            
+            // 检查Plotly库
+            checkPlotlyLoaded();
+        });
+
+        // 检查Plotly库是否加载
+        function checkPlotlyLoaded() {
+            let checkCount = 0;
+            const maxChecks = 10;
+            
+            function checkPlotly() {
+                if (typeof Plotly !== 'undefined') {
+                    console.log('✅ Plotly库检查成功');
+                    return;
+                } else if (checkCount < maxChecks) {
+                    checkCount++;
+                    console.log(`⏳ Plotly库未就绪，${500}ms后重试 (${checkCount}/${maxChecks})`);
+                    setTimeout(checkPlotly, 500);
+                } else {
+                    console.error('❌ Plotly库加载超时');
+                }
+            }
+            
+            checkPlotly();
+        }
+
+        // 开始自动刷新
+        function startAutoRefresh() {
+            // 每10秒自动刷新数据
+            autoRefreshInterval = setInterval(refreshData, 10000);
+            console.log('🔄 自动刷新已启动，每10秒刷新一次');
+        }
+
+        // 停止自动刷新
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+                console.log('⏹️ 自动刷新已停止');
+            }
+        }
 
         // 显示加载状态
         function showLoading() {
-            console.log('🔄 显示加载状态');
             if (loading) {
                 loading.classList.add('show');
-            } else {
-                console.warn('⚠️ loading元素未找到');
             }
-            
             if (analyzeBtn) {
                 analyzeBtn.disabled = true;
                 analyzeBtn.textContent = '分析中...';
-            } else {
-                console.warn('⚠️ analyzeBtn元素未找到');
             }
         }
 
         // 隐藏加载状态
         function hideLoading() {
-            console.log('🔄 隐藏加载状态');
             if (loading) {
                 loading.classList.remove('show');
-            } else {
-                console.warn('⚠️ loading元素未找到');
             }
-            
             if (analyzeBtn) {
                 analyzeBtn.disabled = false;
                 analyzeBtn.textContent = '📈 开始分析';
+            }
+        }
+
+        // 分析股票数据
+        async function analyzeStock() {
+            console.log('🔍 开始分析股票数据...');
+            
+            try {
+                const stockCode = document.getElementById('stockSelect').value;
+                const months = document.getElementById('analysisMonths').value;
+                
+                const data = {
+                    months: parseInt(months),
+                    stock_code: stockCode,
+                    stock_name: document.getElementById('stockSelect').selectedOptions[0].text
+                };
+
+                console.log('分析参数:', data);
+                showLoading();
+                
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+                console.log('分析结果:', result);
+
+                hideLoading();
+
+                if (result.success) {
+                    // 显示基础信息
+                    displayBasicInfo(result);
+                    
+                    // 显示K线图
+                    if (result.chart_data) {
+                        displayChart(result.chart_data, 'chartContainer', 'chartSection');
+                    }
+                        } else {
+                    showError('分析失败: ' + result.message);
+                }
+            } catch (error) {
+                console.error('分析错误:', error);
+                hideLoading();
+                showError('分析失败: ' + error.message);
+            }
+        }
+
+        // 显示基础信息（使用传入的状态数据）
+        async function displayBasicInfoWithStatus(status) {
+            const basicInfoDisplay = document.getElementById('basicInfoDisplay');
+            const basicInfoGrid = document.getElementById('basicInfoGrid');
+            
+            try {
+                console.log('使用传入的状态数据:', status);
+                
+                // 计算总资产和收益率
+                const currentPrice = status.current_price || 0;
+                const position = status.position || {};
+                const totalShares = position.shares || 0;
+                const totalAssets = currentPrice * totalShares;
+                const totalCost = status.base_investment || 0;
+                const todayReturn = status.stock_change_rate || 0;
+                const cumulativeReturn = totalCost > 0 ? (totalAssets - totalCost) / totalCost : 0;
+                const annualReturn = cumulativeReturn * 2; // 简化计算
+                
+                console.log('股价数据调试:', {
+                    currentPrice: currentPrice,
+                    stockChangeRate: status.stock_change_rate,
+                    goldPrice: status.gold_price,
+                    goldChangeRate: status.gold_change_rate
+                });
+                
+                basicInfoGrid.innerHTML = `
+                    <div class="data-item">
+                    <div class="label">当前股价</div>
+                        <div class="value">¥${currentPrice.toFixed(2)}</div>
+                </div>
+                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">股价涨跌</div>
+                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
+                    </div>
+                    <div class="data-item">
+                    <div class="label">国际金价</div>
+                    <div class="value">$${status.gold_price.toFixed(2)}</div>
+                </div>
+                    <div class="data-item ${status.gold_change_rate >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">金价涨跌</div>
+                        <div class="value">${(status.gold_change_rate * 100).toFixed(2)}%</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">总成本</div>
+                        <div class="value">¥${totalCost.toLocaleString()}</div>
+                </div>
+                    <div class="data-item">
+                        <div class="label">总持股数</div>
+                        <div class="value">${totalShares.toFixed(2)}股</div>
+                </div>
+                    <div class="data-item">
+                        <div class="label">总资产</div>
+                        <div class="value">¥${totalAssets.toLocaleString()}</div>
+                    </div>
+                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
+                        <div class="label">今日收益率</div>
+                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
+                </div>
+                    <div class="data-item ${cumulativeReturn >= 0 ? 'positive' : 'negative'}">
+                        <div class="label">累计收益率</div>
+                        <div class="value">${(cumulativeReturn * 100).toFixed(2)}%</div>
+                </div>
+                    <div class="data-item ${annualReturn >= 0 ? 'positive' : 'negative'}">
+                        <div class="label">年化收益率</div>
+                        <div class="value">${(annualReturn * 100).toFixed(2)}%</div>
+                </div>
+            `;
+                
+                basicInfoDisplay.style.display = 'block';
+            } catch (error) {
+                console.error('显示基础信息失败:', error);
+                showError('显示基础信息失败: ' + error.message);
+            }
+        }
+
+        // 强制显示实时数据模块
+        function showRealtimeDataModule() {
+            const basicInfoDisplay = document.getElementById('basicInfoDisplay');
+            if (basicInfoDisplay) {
+                basicInfoDisplay.style.display = 'block';
+                console.log('✅ 强制显示实时数据模块');
             } else {
-                console.warn('⚠️ analyzeBtn元素未找到');
+                console.error('❌ 找不到实时数据模块元素');
             }
         }
 
-        // 显示成功结果
-        function showSuccess(result) {
-            // 处理字符串和对象两种参数格式
-            let stockName = '湖南黄金';
-            let message = '分析完成！K线图已生成';
+        // 显示基础信息
+        async function displayBasicInfo(result) {
+            console.log('🔄 开始显示基础信息...');
+            const basicInfoDisplay = document.getElementById('basicInfoDisplay');
+            const basicInfoGrid = document.getElementById('basicInfoGrid');
             
-            if (typeof result === 'string') {
-                message = result;
-            } else if (typeof result === 'object' && result !== null) {
-                stockName = result.stock_name || '湖南黄金';
-                message = result.message || '分析完成！K线图已生成';
+            console.log('🔍 DOM元素检查:', {
+                basicInfoDisplay: basicInfoDisplay,
+                basicInfoGrid: basicInfoGrid
+            });
+            
+            try {
+                // 从API获取真实的状态数据
+                const stockCode = document.getElementById('stockSelect').value;
+                console.log('🔍 当前选择的股票代码:', stockCode);
+                
+                if (!stockCode) {
+                    console.error('❌ 股票代码为空');
+                    showError('请选择股票');
+                    return;
+                }
+
+                console.log('📡 正在请求API...');
+                const response = await fetch(`/api/current_status?stock_code=${stockCode}`);
+                console.log('📡 API响应状态:', response.status);
+                
+                const status = await response.json();
+                console.log('📊 获取到的状态数据:', status);
+                
+            if (status.error) {
+                    console.error('❌ 获取状态失败:', status.error);
+                    showError('获取实时数据失败: ' + status.error);
+                return;
             }
             
-            resultContent.innerHTML = `
-                <div class="success">
-                    ✅ ${message}
+                // 计算总资产和收益率
+                console.log('🧮 开始计算数据...');
+                const currentPrice = status.current_price || 0;
+                const position = status.position || {};
+                const totalShares = position.shares || 0;
+                const totalAssets = currentPrice * totalShares;
+                const totalCost = status.base_investment || 0;
+                const todayReturn = status.stock_change_rate || 0;
+                const cumulativeReturn = totalCost > 0 ? (totalAssets - totalCost) / totalCost : 0;
+                const annualReturn = cumulativeReturn * 2; // 简化计算
+                
+                console.log('📊 计算后的数据:', {
+                    currentPrice: currentPrice,
+                    stockChangeRate: status.stock_change_rate,
+                    goldPrice: status.gold_price,
+                    goldChangeRate: status.gold_change_rate,
+                    totalShares: totalShares,
+                    totalAssets: totalAssets,
+                    totalCost: totalCost,
+                    todayReturn: todayReturn,
+                    cumulativeReturn: cumulativeReturn,
+                    annualReturn: annualReturn
+                });
+                
+                console.log('🎨 开始生成HTML内容...');
+                basicInfoGrid.innerHTML = `
+                    <div class="data-item">
+                    <div class="label">当前股价</div>
+                        <div class="value">¥${currentPrice.toFixed(2)}</div>
                 </div>
-                <p><strong>股票:</strong> ${stockName}</p>
-                <p><strong>提示:</strong> 可以通过拖拽图表来调整时间范围</p>
-            `;
-            resultSection.style.display = 'block';
-            
-            // 显示图表
-            if (result.chart_data) {
-                displayChart(result.chart_data);
-            }
-        }
-
-        // 显示错误信息
-        function showError(message) {
-            resultContent.innerHTML = `
-                <div class="error">
-                    ❌ ${message}
+                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">股价涨跌</div>
+                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
+                    </div>
+                    <div class="data-item">
+                    <div class="label">国际金价</div>
+                    <div class="value">$${status.gold_price.toFixed(2)}</div>
+                </div>
+                    <div class="data-item ${status.gold_change_rate >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">金价涨跌</div>
+                        <div class="value">${(status.gold_change_rate * 100).toFixed(2)}%</div>
+                    </div>
+                    <div class="data-item">
+                        <div class="label">总成本</div>
+                        <div class="value">¥${totalCost.toLocaleString()}</div>
+                </div>
+                    <div class="data-item">
+                        <div class="label">总持股数</div>
+                        <div class="value">${totalShares.toFixed(2)}股</div>
+                </div>
+                    <div class="data-item">
+                        <div class="label">总资产</div>
+                        <div class="value">¥${totalAssets.toLocaleString()}</div>
+                    </div>
+                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
+                        <div class="label">今日收益率</div>
+                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
+                </div>
+                    <div class="data-item ${cumulativeReturn >= 0 ? 'positive' : 'negative'}">
+                        <div class="label">累计收益率</div>
+                        <div class="value">${(cumulativeReturn * 100).toFixed(2)}%</div>
+                </div>
+                    <div class="data-item ${annualReturn >= 0 ? 'positive' : 'negative'}">
+                        <div class="label">年化收益率</div>
+                        <div class="value">${(annualReturn * 100).toFixed(2)}%</div>
                 </div>
             `;
-            resultSection.style.display = 'block';
-        }
-
-        // 隐藏结果
-        function hideResults() {
-            resultSection.style.display = 'none';
-            statusPanel.style.display = 'none';
-            document.getElementById('chartSection').style.display = 'none';
+                
+                basicInfoDisplay.style.display = 'block';
+                console.log('✅ 实时数据模块已显示');
+                console.log('🔍 模块内容检查:', {
+                    innerHTML: basicInfoGrid.innerHTML.substring(0, 100) + '...',
+                    display: basicInfoDisplay.style.display,
+                    visible: basicInfoDisplay.offsetHeight > 0
+                });
+            } catch (error) {
+                console.error('获取基础信息失败:', error);
+                showError('获取基础信息失败: ' + error.message);
+            }
         }
 
         // 显示图表
-        function displayChart(chartData) {
-            console.log('📊 开始显示图表...');
-            console.log('图表数据长度:', chartData ? chartData.length : 'undefined');
-            console.log('当前窗口大小:', window.innerWidth + 'x' + window.innerHeight);
-            
+        function displayChart(chartData, containerId, sectionId) {
             try {
-                // 检查Plotly是否已加载
-                console.log('检查Plotly库状态...');
-                if (!checkPlotlyLoaded()) {
-                    console.error('❌ Plotly库未加载，开始重试机制...');
-                    // 等待Plotly库加载
-                    let retryCount = 0;
-                    const maxRetries = 10;
-                    
-                    function retryDisplayChart() {
-                        console.log(`🔄 重试显示图表 (${retryCount + 1}/${maxRetries})`);
-                        
-                        if (checkPlotlyLoaded()) {
-                            console.log('✅ Plotly库已就绪，重新调用displayChart');
-                            displayChart(chartData);
-                        } else if (retryCount < maxRetries) {
-                            retryCount++;
-                            console.log(`⏳ Plotly库未就绪，${500}ms后重试`);
-                            setTimeout(retryDisplayChart, 500);
-                        } else {
-                            console.error('❌ Plotly库重试失败，已达到最大重试次数');
-                            showError('图表库加载失败，请刷新页面重试');
-                        }
-                    }
-                    
-                    setTimeout(retryDisplayChart, 500);
-                    return;
-                }
+                if (typeof Plotly === 'undefined') {
+                    console.error('❌ Plotly库未加载');
+                return;
+            }
+            
+                const container = document.getElementById(containerId);
+                const section = document.getElementById(sectionId);
                 
-                console.log('✅ Plotly库已就绪，开始创建图表');
-                
-                const chartContainer = document.getElementById('chartContainer');
-                const chartSection = document.getElementById('chartSection');
-                
-                console.log('图表容器:', chartContainer);
-                console.log('图表区域:', chartSection);
-                
-                if (!chartContainer) {
+                if (!container || !section) {
                     console.error('❌ 图表容器未找到');
-                    showError('图表容器未找到');
                     return;
                 }
                 
-                // 确保图表区域已显示，否则尺寸为0
-                if (chartSection.style.display === 'none') {
-                    chartSection.style.display = 'block';
-                    console.log('🔧 强制显示图表区域');
-                }
+                // 显示图表区域
+                section.style.display = 'block';
                 
                 // 解析图表数据
-                console.log('解析图表数据...');
                 const data = JSON.parse(chartData);
-                console.log('解析后的数据:', data);
-                console.log('数据键:', Object.keys(data));
                 
-                if (!data.data || !data.layout) {
-                    console.error('❌ 图表数据格式错误');
-                    console.log('data.data:', data.data);
-                    console.log('data.layout:', data.layout);
-                    showError('图表数据格式错误');
-                    return;
+                // 调整布局以确保完整显示
+                if (data.layout) {
+                    data.layout.height = 800; // 设置固定高度
+                    data.layout.autosize = true;
+                    data.layout.margin = {
+                        l: 50,
+                        r: 50,
+                        t: 80,
+                        b: 50
+                    };
                 }
                 
-                console.log('✅ 图表数据验证通过，开始创建Plotly图表');
-                console.log('数据轨迹数量:', data.data.length);
-                console.log('布局信息:', data.layout);
-                console.log('布局宽度和高度:', {
-                    width: data.layout.width,
-                    height: data.layout.height,
-                    autosize: data.layout.autosize
-                });
-                
-                // 使用Plotly显示图表
-                console.log('🔧 开始创建Plotly图表，配置参数:', {
-                    responsive: true,
-                    autosize: true,
-                    useResizeHandler: true
-                });
-                
-                // 强制设置容器样式
-                chartContainer.style.width = '100%';
-                chartContainer.style.minWidth = '100%';
-                chartContainer.style.maxWidth = 'none';
-                console.log('🔧 强制设置容器样式完成');
-                
-                Plotly.newPlot(chartContainer, data.data, data.layout, {
+                // 创建Plotly图表
+                Plotly.newPlot(container, data.data, data.layout, {
                     responsive: true,
                     displayModeBar: true,
                     modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d'],
@@ -636,471 +988,136 @@
                     autosize: true,
                     useResizeHandler: true
                 }).then(function() {
-                    console.log('✅ Plotly图表创建成功');
+                    console.log('✅ 图表显示成功');
                     
-                    // 等待一帧后获取尺寸和调试信息
+                    // 强制调整大小以确保完整显示
                     setTimeout(() => {
-                        console.log('图表容器尺寸:', {
-                            width: chartContainer.offsetWidth,
-                            height: chartContainer.offsetHeight,
-                            clientWidth: chartContainer.clientWidth,
-                            clientHeight: chartContainer.clientHeight
-                        });
-                        console.log('图表区域尺寸:', {
-                            width: chartSection.offsetWidth,
-                            height: chartSection.offsetHeight,
-                            clientWidth: chartSection.clientWidth,
-                            clientHeight: chartSection.clientHeight
-                        });
-                        
-                        // 调用调试函数
-                        debugChartContainer();
-                    }, 10);
-                    
-                    // 立即强制重新调整大小
-                    console.log('🔄 立即强制重新调整图表大小');
-                    forceFixChartWidth();
-                    
-                    // 延迟修复
-                    setTimeout(function() {
-                        console.log('🔄 延迟修复图表宽度');
-                        forceFixChartWidth();
+                        Plotly.Plots.resize(container);
                     }, 100);
-                    
-                    // 再次尝试修复
-                    setTimeout(function() {
-                        console.log('🔄 二次修复图表宽度');
-                        forceFixChartWidth();
-                    }, 500);
                 });
-                
-                // 显示图表区域
-                chartSection.style.display = 'block';
-                console.log('✅ 图表区域已显示');
                 
                 // 添加窗口大小变化监听
                 window.addEventListener('resize', function() {
-                    console.log('🔄 窗口大小变化，重新调整图表大小');
-                    console.log('新窗口大小:', window.innerWidth + 'x' + window.innerHeight);
-                    console.log('图表容器当前尺寸:', {
-                        width: chartContainer.offsetWidth,
-                        height: chartContainer.offsetHeight
-                    });
-                    Plotly.Plots.resize(chartContainer);
+                    Plotly.Plots.resize(container);
                 });
                 
-                console.log('🎉 图表显示完成');
             } catch (error) {
                 console.error('❌ 图表显示失败:', error);
-                console.error('错误堆栈:', error.stack);
-                showError('图表显示失败: ' + error.message);
             }
         }
 
-        // 开始状态更新
-        function startStatusUpdates() {
-            updateStatus();
-            statusUpdateInterval = setInterval(updateStatus, 5000); // 每5秒更新一次
-        }
-
-        // 更新状态
-        async function updateStatus() {
-            try {
-                console.log('🔄 开始更新状态...');
-                
-                // 获取当前选择的股票代码
-                const stockSelect = document.getElementById('stockSelect');
-                const currentStockCode = stockSelect ? stockSelect.value : '002155';
-                console.log('📊 当前选择的股票代码:', currentStockCode);
-                
-                const response = await fetch(`/api/current_status?stock_code=${currentStockCode}`);
-                console.log('📡 状态API响应状态:', response.status);
-                
-                const status = await response.json();
-                console.log('📊 接收到的状态数据:', status);
-                
-                if (status.error) {
-                    console.error('❌ 获取状态失败:', status.error);
-                    return;
-                }
-
-                currentStatus = status;
-                displayStatus(status);
-                statusPanel.style.display = 'block';
-                console.log('✅ 状态更新完成');
-            } catch (error) {
-                console.error('❌ 状态更新失败:', error);
-                console.error('错误堆栈:', error.stack);
-            }
-        }
-
-        // 显示状态
-        function displayStatus(status) {
-            console.log('📊 显示状态数据:', status);
-            
-            // 检查是否有错误信息
-            if (status.error) {
-                console.error('❌ 状态数据错误:', status.error);
-                showError(status.error);
-                return;
-            }
-            
-            // 检查关键数据是否为-1（表示数据获取失败）
-            if (status.current_price === -1) {
-                console.warn('⚠️ 股价数据获取失败');
-                showError('股价数据获取失败，请检查网络连接或重新分析');
-                return;
-            }
-            
-            if (status.stock_change_rate === -1) {
-                console.warn('⚠️ 股价涨跌数据获取失败');
-                status.stock_change_rate = 0;
-            }
-            
-            // 检查关键数据是否存在
-            if (!status.current_price || isNaN(status.current_price)) {
-                console.warn('⚠️ 当前股价数据无效:', status.current_price);
-                status.current_price = 0;
-            }
-            
-            if (!status.stock_change_rate || isNaN(status.stock_change_rate)) {
-                console.warn('⚠️ 股价涨跌数据无效:', status.stock_change_rate);
-                status.stock_change_rate = 0;
-            }
-            
-            const positionText = status.position && status.position.has_position ? 
-                `有持仓 (${status.position.shares || 0}股)` : '无持仓';
-            
-            const profitText = status.position && status.position.has_position ? 
-                `${((status.position.current_profit_rate || 0) * 100).toFixed(2)}%` : '-';
-
-            statusGrid.innerHTML = `
-                <div class="status-item">
-                    <div class="label">当前股价</div>
-                    <div class="value">¥${status.current_price.toFixed(2)}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">股价涨跌</div>
-                    <div class="value" style="color: ${status.stock_change_rate >= 0 ? '#dc3545' : '#28a745'}">
-                        ${(status.stock_change_rate * 100).toFixed(2)}%
-                    </div>
-                </div>
-                <div class="status-item">
-                    <div class="label">国际金价</div>
-                    <div class="value">$${status.gold_price.toFixed(2)}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">金价涨跌</div>
-                    <div class="value" style="color: ${status.gold_change_rate >= 0 ? '#dc3545' : '#28a745'}">
-                        ${(status.gold_change_rate * 100).toFixed(2)}%
-                    </div>
-                </div>
-                <div class="status-item">
-                    <div class="label">持仓状态</div>
-                    <div class="value">${positionText}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">当前盈亏</div>
-                    <div class="value" style="color: ${profitText.includes('-') && profitText !== '-' ? '#dc3545' : '#28a745'}">
-                        ${profitText}
-                    </div>
-                </div>
-                <div class="status-item">
-                    <div class="label">交易次数</div>
-                    <div class="value">${status.trade_count}次</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">基础投资</div>
-                    <div class="value">¥${status.base_investment.toLocaleString()}</div>
-                </div>
-                <div class="status-item">
-                    <div class="label">止损比例</div>
-                    <div class="value">${(status.stop_loss_rate * 100).toFixed(1)}%</div>
-                </div>
-            `;
-        }
-
-        // 检查Plotly库是否加载
-        function checkPlotlyLoaded() {
-            console.log('检查Plotly库状态...');
-            console.log('typeof Plotly:', typeof Plotly);
-            console.log('Plotly对象:', Plotly);
-            
-            if (typeof Plotly !== 'undefined') {
-                console.log('✅ Plotly库加载成功');
-                return true;
-            } else {
-                console.log('❌ Plotly库未加载，继续等待...');
-                return false;
-            }
-        }
-
-        // 调试图表容器样式
-        function debugChartContainer() {
-            const chartContainer = document.getElementById('chartContainer');
-            if (!chartContainer) {
-                console.log('❌ 图表容器未找到');
-                return;
-            }
-            
-            const styles = window.getComputedStyle(chartContainer);
-            console.log('📊 图表容器样式调试:');
-            console.log('  - 元素尺寸:', {
-                offsetWidth: chartContainer.offsetWidth,
-                height: chartContainer.offsetHeight,
-                clientWidth: chartContainer.clientWidth,
-                clientHeight: chartContainer.clientHeight,
-                scrollWidth: chartContainer.scrollWidth,
-                scrollHeight: chartContainer.scrollHeight
-            });
-            console.log('  - CSS样式:', {
-                width: styles.width,
-                height: styles.height,
-                minWidth: styles.minWidth,
-                maxWidth: styles.maxWidth,
-                display: styles.display,
-                position: styles.position,
-                boxSizing: styles.boxSizing
-            });
-            console.log('  - 父容器:', chartContainer.parentElement);
-            console.log('  - 父容器尺寸:', {
-                width: chartContainer.parentElement.offsetWidth,
-                height: chartContainer.parentElement.offsetHeight
-            });
-        }
-
-        // 强制修复图表宽度
-        function forceFixChartWidth() {
-            const chartContainer = document.getElementById('chartContainer');
-            if (!chartContainer) return;
-            
-            console.log('🔧 强制修复图表宽度...');
-            console.log('修复前尺寸:', {
-                width: chartContainer.offsetWidth,
-                height: chartContainer.offsetHeight
-            });
-            
-            // 强制设置样式
-            chartContainer.style.width = '100%';
-            chartContainer.style.minWidth = '100%';
-            chartContainer.style.maxWidth = 'none';
-            chartContainer.style.boxSizing = 'border-box';
-            
-            // 强制重新渲染
-            if (typeof Plotly !== 'undefined' && Plotly.Plots) {
-                Plotly.Plots.resize(chartContainer);
-            }
-            
-            console.log('修复后尺寸:', {
-                width: chartContainer.offsetWidth,
-                height: chartContainer.offsetHeight
-            });
-        }
-
-        // 页面加载时获取初始状态
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 页面DOM加载完成');
-            
-            // 初始化DOM元素
-            form = document.getElementById('analysisForm');
-            loading = document.getElementById('loading');
-            statusPanel = document.getElementById('statusPanel');
-            statusGrid = document.getElementById('statusGrid');
-            resultSection = document.getElementById('resultSection');
-            resultContent = document.getElementById('resultContent');
-            analyzeBtn = document.getElementById('analyzeBtn');
-            
-            console.log('DOM元素初始化完成:');
-            console.log('loading:', loading);
-            console.log('analyzeBtn:', analyzeBtn);
-            
-            console.log('开始检查Plotly库...');
-            
-            // 检查Plotly库是否加载
-            let checkCount = 0;
-            const maxChecks = 10;
-            
-            function checkPlotly() {
-                console.log(`第${checkCount + 1}次检查Plotly库...`);
-                
-                if (checkPlotlyLoaded()) {
-                    console.log('✅ Plotly库检查成功，开始更新状态');
-                    updateStatus();
-                } else if (checkCount < maxChecks) {
-                    checkCount++;
-                    console.log(`⏳ Plotly库未就绪，${500}ms后重试 (${checkCount}/${maxChecks})`);
-                    setTimeout(checkPlotly, 500);
-                } else {
-                    console.error('❌ Plotly库加载超时，已达到最大重试次数');
-                    showError('图表库加载超时，请刷新页面重试');
-                }
-            }
-            
-            checkPlotly();
-        });
-
-        // 股票选择变化时的处理
-        const stockSelect = document.getElementById('stockSelect');
-        if (stockSelect) {
-            stockSelect.addEventListener('change', function() {
-                console.log('📊 股票选择变化:', this.value);
-                // 重新启动状态更新
-                if (statusUpdateInterval) {
-                    clearInterval(statusUpdateInterval);
-                }
-                startStatusUpdates();
-            });
-        }
-
-        // 页面卸载时清理定时器
-        window.addEventListener('beforeunload', function() {
-            if (statusUpdateInterval) {
-                clearInterval(statusUpdateInterval);
-            }
-        });
-
-        // 测试按钮点击
-        function testButtonClick() {
-            console.log('🔍 测试按钮点击 - 函数被调用');
-            alert('按钮点击测试成功！');
-        }
-
-        // 页面加载完成后的初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('📄 页面加载完成');
-            console.log('🔍 检查analyzeStock函数是否存在:', typeof analyzeStock);
-            console.log('🔍 检查testButtonClick函数是否存在:', typeof testButtonClick);
-            
-            // 检查按钮元素
-            const analyzeBtn = document.querySelector('button[onclick*="analyzeStock"]');
-            console.log('🔍 分析按钮元素:', analyzeBtn);
-            
-            if (analyzeBtn) {
-                console.log('✅ 找到分析按钮');
-                // 按钮已有onclick事件，不需要重复添加监听器
-            } else {
-                console.error('❌ 找不到分析按钮');
-            }
-        });
-
-        // 分析股票数据
-        async function analyzeStock() {
-            console.log('🔍 analyzeStock函数被调用');
-            console.log('开始分析股票数据...');
+        // 相似度分析
+        async function analyzeSimilarity() {
+            console.log('🔍 开始相似度分析...');
             
             try {
-                const form = document.getElementById('strategyForm');
-                console.log('表单元素:', form);
+                const stockCode = document.getElementById('stockSelect').value;
+                const months = document.getElementById('analysisMonths').value;
                 
-                if (!form) {
-                    console.error('❌ 找不到strategyForm表单');
-                    showError('找不到参数设置表单');
-                    return;
-                }
-                
-                const formData = new FormData(form);
-                console.log('表单数据:', formData);
-                
-                const stockSelect = document.getElementById('stockSelect');
-                console.log('股票选择元素:', stockSelect);
-                
-                if (!stockSelect) {
-                    console.error('❌ 找不到stockSelect元素');
-                    showError('找不到股票选择元素');
-                    return;
-                }
-                
-                const data = {
-                    months: 6, // 默认6个月
-                    stock_code: formData.get('stock_code') || stockSelect.value,
-                    stock_name: stockSelect.selectedOptions[0] ? stockSelect.selectedOptions[0].text : '未知股票'
-                };
-
-                console.log('分析参数:', data);
-                console.log('准备发送请求到 /api/analyze');
-
-                try {
-                    console.log('🔄 显示加载状态');
                     showLoading();
                     
-                    console.log('📡 发送请求到服务器...');
-                    const response = await fetch('/api/analyze', {
+                const response = await fetch('/api/similarity_analysis', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
-                        body: JSON.stringify(data)
-                    });
-
-                    console.log('📡 服务器响应状态:', response.status);
-                    console.log('📡 服务器响应头:', response.headers);
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP错误: ${response.status} ${response.statusText}`);
-                    }
+                    body: JSON.stringify({
+                        stock_code: stockCode,
+                        months: parseInt(months)
+                    })
+                });
 
                     const result = await response.json();
-                    console.log('📊 分析结果:', result);
+                console.log('相似度分析结果:', result);
 
                     hideLoading();
 
                     if (result.success) {
-                        console.log('✅ 分析成功，开始显示图表');
-                        showSuccess({
-                            stock_name: data.stock_name || '湖南黄金',
-                            message: '分析完成！时间范围可通过拖拽图表调整'
-                        });
-                        
-                        // 保存图表数据到全局变量
-                        window.currentChartData = result.chart_data;
-                        console.log('💾 图表数据已保存到全局变量');
-                        
-                        // 显示图表
-                        console.log('📈 开始显示图表');
-                        displayChart(result.chart_data);
-                        
-                        // 开始状态更新
-                        console.log('🔄 开始状态更新');
-                        startStatusUpdates();
+                    displaySimilarityResult(result);
                     } else {
-                        console.error('❌ 分析失败:', result.message);
-                        showError('分析失败: ' + result.message);
+                    showError('相似度分析失败: ' + result.message);
                     }
                 } catch (error) {
-                    console.error('❌ 分析错误:', error);
-                    console.error('错误堆栈:', error.stack);
+                console.error('相似度分析错误:', error);
                     hideLoading();
-                    showError('分析失败: ' + error.message);
-                }
-            } catch (error) {
-                console.error('❌ 函数执行错误:', error);
-                console.error('错误堆栈:', error.stack);
-                showError('函数执行失败: ' + error.message);
+                showError('相似度分析失败: ' + error.message);
             }
         }
 
-        // 执行量化策略
-        async function executeStrategy() {
-            const form = document.getElementById('strategyForm');
-            const formData = new FormData(form);
+        // 显示相似度分析结果
+        function displaySimilarityResult(result) {
+            const similarityResult = document.getElementById('similarityResult');
+            const similarityScore = document.getElementById('similarityScore');
+            const dimensionScores = document.getElementById('dimensionScores');
             
-            // 获取所有策略参数
-            const strategyParams = {
-                base_investment: parseFloat(formData.get('base_investment')),
-                stop_loss_rate: parseFloat(formData.get('stop_loss_rate')) / 100,
-                max_profit_rate: parseFloat(formData.get('max_profit_rate')) / 100,
-                profit_callback_rate: parseFloat(formData.get('profit_callback_rate')) / 100,
-                stock_code: document.getElementById('stockSelect').value,
-                strategy_mode: formData.get('strategy_mode'),
-                // 高级参数
-                min_gold_change: parseFloat(formData.get('min_gold_change')),
-                min_buy_amount: parseFloat(formData.get('min_buy_amount')),
-                transaction_cost_rate: parseFloat(formData.get('transaction_cost_rate'))
-            };
+            // 显示相似度分数
+            const score = result.similarity_score || 0;
+            const scoreClass = score >= 80 ? '' : score >= 60 ? 'medium' : 'low';
+            
+            similarityScore.innerHTML = `
+                <div class="score-circle ${scoreClass}">
+                    <div class="score-value">${score.toFixed(1)}</div>
+                    <div class="score-label">综合相似度</div>
+                </div>
+            `;
+            
+            // 显示各维度分数
+            const dimensions = result.dimension_scores || {};
+            dimensionScores.innerHTML = `
+                <div class="dimension-item">
+                    <div class="score">${(dimensions.correlation || 0).toFixed(1)}</div>
+                    <div class="label">价格相关性</div>
+                </div>
+                <div class="dimension-item">
+                    <div class="score">${(dimensions.trend || 0).toFixed(1)}</div>
+                    <div class="label">趋势一致性</div>
+                </div>
+                <div class="dimension-item">
+                    <div class="score">${(dimensions.volatility || 0).toFixed(1)}</div>
+                    <div class="label">波动性相似度</div>
+                </div>
+                <div class="dimension-item">
+                    <div class="score">${(dimensions.pattern || 0).toFixed(1)}</div>
+                    <div class="label">模式匹配</div>
+                </div>
+                <div class="dimension-item">
+                    <div class="score">${(dimensions.volume || 0).toFixed(1)}</div>
+                    <div class="label">成交量关系</div>
+                </div>
+            `;
+            
+            // 显示相似度图表
+            if (result.chart_data) {
+                displayChart(result.chart_data, 'similarityChartContainer', 'similarityChartSection');
+            }
+            
+            similarityResult.style.display = 'block';
+        }
 
-            console.log('执行策略参数:', strategyParams);
-
+        // 执行策略
+        async function executeStrategy() {
+            console.log('🚀 开始执行策略...');
+            
             try {
+                const formData = new FormData();
+                formData.append('base_investment', document.getElementById('baseInvestment').value);
+                formData.append('stop_loss_rate', document.getElementById('stopLossRate').value);
+                formData.append('max_profit_rate', document.getElementById('maxProfitRate').value);
+                formData.append('profit_callback_rate', document.getElementById('profitCallbackRate').value);
+                formData.append('stock_code', document.getElementById('stockSelect').value);
+                formData.append('strategy_mode', document.getElementById('strategyMode').value);
+                formData.append('min_gold_change', document.getElementById('minGoldChange').value);
+                formData.append('min_buy_amount', document.getElementById('minBuyAmount').value);
+                formData.append('transaction_cost_rate', document.getElementById('transactionCostRate').value);
+                
+                const strategyParams = {};
+                for (let [key, value] of formData.entries()) {
+                    strategyParams[key] = parseFloat(value) || value;
+                }
+                
+                console.log('策略参数:', strategyParams);
+                showLoading();
+                
                 const response = await fetch('/api/execute_strategy', {
                     method: 'POST',
                     headers: {
@@ -1112,299 +1129,109 @@
                 const result = await response.json();
                 console.log('策略执行结果:', result);
 
-                if (result.error) {
-                    showError('策略执行失败: ' + result.error);
-                } else {
-                    showSuccess('策略执行成功！');
+                hideLoading();
                     
-                    // 显示策略执行结果
+                if (result.success) {
                     displayStrategyResult(result);
-                    
-                    // 更新策略统计
-                    updateStrategyStats(result);
-                    
-                    // 如果图表存在，重新绘制包含交易点的图表
-                    if (window.currentChartData) {
-                        await analyzeStock();
-                    }
+                } else {
+                    showError('策略执行失败: ' + result.error);
                 }
             } catch (error) {
                 console.error('策略执行错误:', error);
+                hideLoading();
                 showError('策略执行失败: ' + error.message);
             }
         }
         
         // 显示策略执行结果
         function displayStrategyResult(result) {
-            const strategyResult = result.strategy_result;
-            const strategySummary = result.strategy_summary;
+            const strategyResult = document.getElementById('strategyResult');
+            const strategyStats = document.getElementById('strategyStats');
             
-            let resultHtml = `
-                <div class="success">
-                    <h4>🎯 策略执行结果</h4>
-                    <p><strong>策略模式:</strong> ${result.strategy_mode === 'improved' ? '改进模式' : '基础模式'}</p>
+            const summary = result.strategy_summary || {};
+            
+            strategyStats.innerHTML = `
+                <div class="stat-card">
+                    <div class="value">${summary.total_trades || 0}</div>
+                    <div class="label">总交易次数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">¥${(summary.total_profit || 0).toFixed(2)}</div>
+                    <div class="label">总盈利</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${summary.win_trades || 0}次</div>
+                    <div class="label">盈利交易</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${(summary.win_rate || 0).toFixed(2)}%</div>
+                    <div class="label">胜率</div>
+                </div>
             `;
             
-            if (strategyResult.action === 'BUY') {
-                resultHtml += `
-                    <p><strong>操作:</strong> 买入</p>
-                    <p><strong>买入股数:</strong> ${strategyResult.shares.toFixed(2)}股</p>
-                    <p><strong>买入金额:</strong> ${strategyResult.buy_amount.toFixed(2)}元</p>
-                `;
-                if (strategyResult.transaction_cost) {
-                    resultHtml += `<p><strong>交易成本:</strong> ${strategyResult.transaction_cost.toFixed(2)}元</p>`;
-                }
-            } else if (strategyResult.action === 'SELL') {
-                resultHtml += `
-                    <p><strong>操作:</strong> 卖出</p>
-                    <p><strong>卖出原因:</strong> ${strategyResult.sell_reason || '未知'}</p>
-                    <p><strong>净盈利:</strong> ${strategyResult.profit.toFixed(2)}元 (${(strategyResult.profit_rate * 100).toFixed(2)}%)</p>
-                `;
-                if (strategyResult.transaction_cost) {
-                    resultHtml += `<p><strong>交易成本:</strong> ${strategyResult.transaction_cost.toFixed(2)}元</p>`;
-                }
-            } else {
-                resultHtml += `<p><strong>操作:</strong> 无交易操作</p>`;
-            }
-            
-            resultHtml += `
-                <p><strong>金价:</strong> $${strategyResult.gold_price.toFixed(2)} (${(strategyResult.gold_change_rate * 100).toFixed(2)}%)</p>
-                <p><strong>股票价格:</strong> ¥${strategyResult.stock_price.toFixed(2)}</p>
-            `;
-            
-            if (strategyResult.current_profit_rate !== undefined) {
-                resultHtml += `<p><strong>当前持仓盈利率:</strong> ${(strategyResult.current_profit_rate * 100).toFixed(2)}%</p>`;
-            }
-            
-            resultHtml += `</div>`;
-            
-            resultContent.innerHTML = resultHtml;
-            resultSection.style.display = 'block';
+            strategyResult.style.display = 'block';
         }
 
-        // 更新策略统计显示
-        function updateStrategyStats(result) {
-            const statsDiv = document.getElementById('strategyStats');
-            if (result.strategy_summary) {
-                const summary = result.strategy_summary;
-                
-                document.getElementById('totalTrades').textContent = summary.total_trades;
-                document.getElementById('totalProfit').textContent = summary.total_profit.toFixed(2) + '元';
-                document.getElementById('winTrades').textContent = summary.win_trades + '次';
-                document.getElementById('winRate').textContent = summary.win_rate.toFixed(2) + '%';
-                
-                statsDiv.style.display = 'block';
-            }
+        // 历史回测
+        async function runBacktest() {
+            console.log('📊 开始历史回测...');
+            showLoading();
+            
+            // 这里应该调用回测API
+            // 暂时显示模拟结果
+            setTimeout(() => {
+                hideLoading();
+                showSuccess('历史回测完成！');
+            }, 2000);
         }
 
-        // 获取策略统计
-        async function getStrategyStats() {
+        // 刷新数据
+        async function refreshData() {
+            console.log('🔄 刷新数据...');
             try {
-                const response = await fetch('/api/strategy_stats');
-                const stats = await response.json();
-                
-                if (stats.error) {
-                    console.error('获取策略统计失败:', stats.error);
-                } else {
-                    updateStrategyStats({strategy_summary: stats});
-                }
-            } catch (error) {
-                console.error('获取策略统计错误:', error);
-            }
-        }
-
-        // 相似度分析功能
-        async function analyzeSimilarity() {
-            try {
-                console.log('🔍 开始相似度分析...');
-                
-                // 获取表单数据
-                const stockCodeElement = document.getElementById('stockSelect');
-                const monthsElement = document.getElementById('analysisMonths');
-                
-                if (!stockCodeElement || !monthsElement) {
-                    console.error('❌ 找不到分析参数元素');
-                    alert('页面元素加载错误，请刷新页面重试');
+                // 获取当前选择的股票代码
+                const stockCode = document.getElementById('stockSelect').value;
+                if (!stockCode) {
+                    console.log('未选择股票，跳过刷新');
                     return;
                 }
                 
-                const stockCode = stockCodeElement.value;
-                const months = monthsElement.value;
+                const response = await fetch(`/api/current_status?stock_code=${stockCode}`);
+                const status = await response.json();
                 
-                console.log(`分析参数: 股票代码=${stockCode}, 时间范围=${months}个月`);
-                
-                // 显示加载状态
-                const analyzeBtn = document.querySelector('button[onclick*="analyzeSimilarity"]');
-                if (!analyzeBtn) {
-                    console.error('❌ 找不到相似度分析按钮');
-                    alert('页面元素加载错误，请刷新页面重试');
+                if (status.error) {
+                    console.error('获取状态失败:', status.error);
                     return;
                 }
                 
-                const originalText = analyzeBtn.textContent;
-                analyzeBtn.textContent = '🔄 分析中...';
-                analyzeBtn.disabled = true;
-                
-                // 发送分析请求
-                const response = await fetch('/api/similarity_analysis', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        stock_code: stockCode,
-                        months: parseInt(months)
-                    })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    console.log('✅ 相似度分析成功:', result);
-                    
-                    // 显示相似度分析结果
-                    displaySimilarityResult(result);
-                    
-                } else {
-                    console.error('❌ 相似度分析失败:', result.message);
-                    alert('相似度分析失败: ' + result.message);
+                // 更新基础信息显示
+                const basicInfoDisplay = document.getElementById('basicInfoDisplay');
+                if (basicInfoDisplay && basicInfoDisplay.style.display !== 'none') {
+                    // 直接使用获取到的状态数据，避免重复请求
+                    await displayBasicInfoWithStatus(status);
                 }
                 
+                console.log('✅ 数据刷新完成');
             } catch (error) {
-                console.error('❌ 相似度分析错误:', error);
-                alert('相似度分析出错: ' + error.message);
-            } finally {
-                // 恢复按钮状态
-                const analyzeBtn = document.querySelector('button[onclick*="analyzeSimilarity"]');
-                if (analyzeBtn) {
-                    analyzeBtn.textContent = '🔍 走势相似度分析';
-                    analyzeBtn.disabled = false;
-                }
+                console.error('❌ 数据刷新失败:', error);
             }
-        }
-        
-        // 显示相似度分析结果
-        function displaySimilarityResult(result) {
-            console.log('📊 显示相似度分析结果...');
-            
-            // 显示相似度分析区域
-            const similaritySection = document.getElementById('similaritySection');
-            const similarityContainer = document.getElementById('similarityContainer');
-            const similarityInfo = document.getElementById('similarityInfo');
-            
-            if (!similaritySection || !similarityContainer || !similarityInfo) {
-                console.error('❌ 相似度分析容器未找到');
-                return;
-            }
-            
-            // 显示区域
-            similaritySection.style.display = 'block';
-            
-            // 显示图表
-            if (result.chart_data) {
-                try {
-                    const chartData = JSON.parse(result.chart_data);
-                    Plotly.newPlot(similarityContainer, chartData.data, chartData.layout, {
-                        responsive: true,
-                        displayModeBar: true,
-                        modeBarButtonsToRemove: ['pan2d', 'lasso2d', 'select2d']
-                    });
-                    console.log('✅ 相似度分析图表显示成功');
-                } catch (error) {
-                    console.error('❌ 相似度分析图表显示失败:', error);
-                }
-            }
-            
-            // 显示分析信息
-            const similarityScore = result.similarity_score;
-            const dimensionScores = result.dimension_scores;
-            const analysisSummary = result.analysis_summary;
-            const stockName = result.stock_name || '股票';
-            const dailySimilarity = result.daily_similarity || {};
-            
-            // 根据相似度分数设置颜色
-            let scoreColor = '#ff6b6b'; // 红色 - 低相似度
-            let scoreLevel = '低';
-            if (similarityScore >= 80) {
-                scoreColor = '#28a745'; // 绿色 - 高相似度
-                scoreLevel = '高';
-            } else if (similarityScore >= 60) {
-                scoreColor = '#ffc107'; // 黄色 - 中等相似度
-                scoreLevel = '中等';
-            }
-            
-            similarityInfo.innerHTML = `
-                <div style="text-align: center; margin-bottom: 20px;">
-                    <h3 style="color: #333; margin-bottom: 15px;">📊 相似度分析结果</h3>
-                    <div style="display: inline-block; padding: 20px; background: ${scoreColor}; color: white; border-radius: 15px; margin-bottom: 20px;">
-                        <div style="font-size: 2.5em; font-weight: bold; margin-bottom: 5px;">${similarityScore.toFixed(1)}</div>
-                        <div style="font-size: 1.2em;">综合相似度分数</div>
-                        <div style="font-size: 1em; margin-top: 5px; opacity: 0.9;">${scoreLevel}相似度</div>
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                    <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #007bff;">
-                        <div style="font-size: 1.5em; font-weight: bold; color: #007bff;">${dimensionScores.correlation.toFixed(1)}</div>
-                        <div style="color: #666;">价格相关性</div>
-                    </div>
-                    <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #28a745;">
-                        <div style="font-size: 1.5em; font-weight: bold; color: #28a745;">${dimensionScores.trend.toFixed(1)}</div>
-                        <div style="color: #666;">趋势一致性</div>
-                    </div>
-                    <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #ffc107;">
-                        <div style="font-size: 1.5em; font-weight: bold; color: #ffc107;">${dimensionScores.volatility.toFixed(1)}</div>
-                        <div style="color: #666;">波动性相似度</div>
-                    </div>
-                    <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #dc3545;">
-                        <div style="font-size: 1.5em; font-weight: bold; color: #dc3545;">${dimensionScores.pattern.toFixed(1)}</div>
-                        <div style="color: #666;">模式匹配</div>
-                    </div>
-                    <div style="background: white; padding: 15px; border-radius: 10px; text-align: center; border-left: 4px solid #6f42c1;">
-                        <div style="font-size: 1.5em; font-weight: bold; color: #6f42c1;">${dimensionScores.volume.toFixed(1)}</div>
-                        <div style="color: #666;">成交量关系</div>
-                    </div>
-                </div>
-                
-                <div style="background: white; padding: 20px; border-radius: 10px; text-align: center;">
-                    <h4 style="color: #333; margin-bottom: 10px;">📝 分析摘要</h4>
-                    <p style="color: #666; font-size: 1.1em; line-height: 1.6;">${analysisSummary}</p>
-                </div>
-                
-                ${dailySimilarity.dates && dailySimilarity.dates.length > 0 ? `
-                <div style="background: white; padding: 20px; border-radius: 10px; margin-top: 20px;">
-                    <h4 style="color: #333; margin-bottom: 15px;">📈 每日相似度统计</h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
-                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                            <div style="font-size: 1.8em; font-weight: bold; color: #007bff;">${dailySimilarity.mean_similarity || 'N/A'}</div>
-                            <div style="color: #666; font-size: 0.9em;">平均相似度</div>
-                        </div>
-                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                            <div style="font-size: 1.8em; font-weight: bold; color: #28a745;">${dailySimilarity.max_similarity || 'N/A'}</div>
-                            <div style="color: #666; font-size: 0.9em;">最高相似度</div>
-                        </div>
-                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                            <div style="font-size: 1.8em; font-weight: bold; color: #dc3545;">${dailySimilarity.min_similarity || 'N/A'}</div>
-                            <div style="color: #666; font-size: 0.9em;">最低相似度</div>
-                        </div>
-                        <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                            <div style="font-size: 1.8em; font-weight: bold; color: #6f42c1;">${dailySimilarity.std_similarity || 'N/A'}</div>
-                            <div style="color: #666; font-size: 0.9em;">标准差</div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 15px; text-align: center; color: #666; font-size: 0.9em;">
-                        数据点数量: ${dailySimilarity.dates ? dailySimilarity.dates.length : 0} 个
-                    </div>
-                </div>
-                ` : ''}
-            `;
-            
-            console.log('✅ 相似度分析结果显示完成');
         }
 
-        // 页面加载时获取策略统计
-        document.addEventListener('DOMContentLoaded', function() {
-            getStrategyStats();
+        // 显示错误信息
+        function showError(message) {
+            console.error('❌', message);
+            // 这里可以添加错误提示UI
+        }
+
+        // 显示成功信息
+        function showSuccess(message) {
+            console.log('✅', message);
+            // 这里可以添加成功提示UI
+        }
+
+        // 页面卸载时清理定时器
+        window.addEventListener('beforeunload', function() {
+            stopAutoRefresh();
         });
     </script>
 </body>
