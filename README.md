@@ -44,6 +44,7 @@
 ├── data_provider.py # 专业K线图系统
 ├── web_server.py                 # Web服务器
 ├── start.py               # 启动脚本
+├── akshare               # akshare开源框架
 ├── requirements.txt              # 依赖包
 ├── similarity_analyzer              # K线相似度分析器
 ├── trading_strategy              # 交易策略
@@ -60,7 +61,7 @@
    - 初始资金（例如初始资金1000元）
    - 分析时间范围（下拉选择，1个月、2个月、3个月、6个月、12个月、24个月）
 3. 图表
-   - 表格：当前股价、股价涨跌、国际金价、金价涨跌、总成本、总持股数、总资产、今日收益率、累计收益率、年化收益率
+   - 表格：当前股价、股价涨跌、伦敦金价、金价涨跌、投资成本、总持股数、总资产、今日收益率、累计收益率、年化收益率
    - 图：当前股票的K线图、国际金价的K线图
 
 ### 相似度分析模块
@@ -79,7 +80,7 @@
 1. 触发时机：在web页面中，点击“执行策略”
 2. 参数设置
    - base_investment: 每次投资的基准金额（每次买入金额 = 基础金额 × 金价涨幅）
-   - stop_loss_rate: 止损率（当亏损到总成本的（1-止损率）时卖出）
+   - stop_loss_rate: 止损率（当亏损到投资成本的（1-止损率）时卖出）
    - profit_callback_rate: 盈利回调率（从最大盈利率回调到（最大盈利率-盈利回调率）时卖出）
    - max_profit_rate: 最大盈利率（当盈利超过最大盈利率时卖出）
    - min_gold_change: 最小金价涨幅阈值（0.2%，只有金价涨幅超过最小金价涨幅阈值时才买入）
@@ -134,7 +135,7 @@
 - 股价涨跌（金额和百分比）
 - 国际金价
 - 金价涨跌（金额和百分比）
-- 总成本
+- 投资成本
 - 总持股数
 - 总资产
 - 今日收益率
@@ -242,11 +243,22 @@
 - **Web框架**: Flask
 - **前端技术**: HTML5 + JavaScript + Plotly.js
 - **数据源**: akshare开源框架
+- **mysql版本**：8
+- **依赖库**：pip install mysql-connector-python
+- **数据库**：wisehair
+- **表名**：trading_strategy
 
 ### 4.2 部署要求
 - **服务器**: Linux环境
 - **端口**: 默认5000端口
 - **依赖管理**: requirements.txt
+- **数据库**: MySQL 8.0+，需要创建数据库'wisehair'
+
+### 4.3 数据库初始化
+1. 确保MySQL服务已启动
+2. 创建数据库：`CREATE DATABASE wisehair;`
+3. 运行初始化脚本：`python database/init_database.py`
+4. 脚本会自动创建`trading_strategy`表并插入默认数据
 - **启动方式**: 支持脚本启动和手动启动
 
 ### 4.3 数据约束
@@ -310,6 +322,122 @@
 ### 7.3 缓解措施
 - 实现数据缓存机制，减少API调用频率
 - 提供参数调优建议和默认值(默认值不要写在代码里，需要在web页面可设置)
+
+## 8. 数据持久化说明
+
+### 8.1 数据库表结构
+
+系统使用MySQL数据库的`tool_stock_tools_gold`表进行数据持久化，支持多用户量化交易策略。以下是表结构和字段说明：
+
+#### 数据库表：tool_stock_tools_gold
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| tool_stock_tools_gold_id | BIGINT UNSIGNED | 主键，自增，用户唯一标识 |
+| auth | VARCHAR(100) | 授权码（唯一索引） |
+| expire_time | TIMESTAMP | 账号过期时间 |
+| deleted | CHAR(1) | 已删除（T删除，F未删除） |
+| updater | VARCHAR(20) | 更新者 |
+| creator | VARCHAR(20) | 创建者 |
+| create_time | TIMESTAMP | 创建时间 |
+| update_time | TIMESTAMP | 更新时间 |
+| start_time | TIME | 开始时间 |
+| end_time | TIME | 结束时间 |
+| switched | VARCHAR(20) | 开关（T开；F关） |
+| **策略字段** | | |
+| total_cost | DECIMAL(15,2) | 投资成本（累计投入资金） |
+| total_shares | INT | 持股数量 |
+| history_max_profit | DECIMAL(15,2) | 历史最大盈利 |
+| last_total_profit | DECIMAL(15,2) | 上次总盈利 |
+| position | JSON | 持仓信息（JSON格式） |
+| trade_history | JSON | 交易历史记录（JSON格式） |
+| last_trade_date | DATETIME | 最后交易日期 |
+
+#### 基础投资信息（持久化）
+- **`total_cost`** (number): 投资成本，累计投入的资金总额，包括所有买入交易的成本（单位：元）
+- **`total_shares`** (number): 总持股数，当前持有的股票数量（单位：股）
+
+#### 收益率信息（实时计算）
+**注意**：收益率数据不再存储在JSON文件中，而是根据当前股价和投资成本实时计算：
+
+- **累计收益率计算公式**：`(总资产 - 投资成本) / 投资成本 × 100%`
+  - 总资产 = 当前股价 × 持股数量
+  - 投资成本 = total_cost（累计投入资金）
+  
+- **年化收益率计算公式**：`[(投资收益 ÷ 本金) ÷ 投资天数] × 365 × 100%`
+  - 投资天数 = 从last_trade_date到当前日期的天数
+  - 投资收益 = 总资产 - 投资成本
+
+#### 实时数据（不持久化）
+以下数据每次都是实时获取，不存储在JSON文件中：
+- **`current_price`**: 当前股价，最新股票价格（单位：元）
+- **`stock_change_rate`**: 股价涨跌幅，当日股价变化百分比（范围：-1到1）
+- **`gold_price`**: 伦敦金价，最新伦敦金价格（单位：美元）
+- **`gold_change_rate`**: 金价涨跌幅，当日金价变化百分比（范围：-1到1）
+- **`total_assets`**: 总资产，当前股票市值（单位：元）
+- **`cumulative_return`**: 累计收益率，实时计算（范围：-1到1）
+- **`annual_return`**: 年化收益率，实时计算（范围：-1到1）
+
+#### 历史记录信息
+- **`history_max_profit`** (number): 历史最大盈利，曾经达到过的最大盈利金额（单位：元）
+- **`last_total_profit`** (number): 上次总盈利，最后一次交易的总盈利（单位：元）
+
+#### 持仓信息 (position对象)
+- **`has_position`** (boolean): 是否有持仓，true表示当前持有股票
+- **`buy_price`** (number): 买入价格，最后一次买入的股票价格（单位：元）
+- **`shares`** (number): 持股数量，当前持有的股票数量（单位：股）
+- **`amount`** (number): 持仓金额，当前持仓的总金额（单位：元）
+- **`current_profit_rate`** (number): 当前盈利率，基于当前股价的盈利率（范围：-1到1）
+- **`max_profit_rate`** (number): 最大盈利率，持仓期间达到过的最大盈利率（范围：-1到1）
+
+#### 交易历史信息
+- **`trade_history`** (array): 交易历史记录，包含所有买卖交易的详细信息
+- **`last_trade_date`** (string): 最后交易日期，格式为"YYYY-MM-DD"
+- **`save_time`** (string): 保存时间，数据最后更新时间，格式为"YYYY-MM-DD HH:MM:SS"
+
+### 8.2 数据更新机制
+
+- **自动更新**: 每次调用`get_current_status()`方法时，系统会自动更新实时数据并保存到数据库
+- **数据持久化**: 系统重启后会自动从数据库恢复历史数据
+- **计算同步**: 累计收益率、年化收益率等计算字段会根据最新数据自动更新
+- **数据库连接**: 通过`database/strategy_dao.py`进行数据操作
+
+### 8.3 数据计算逻辑
+
+#### 8.3.1 总资产计算
+- **总资产** = 当前股价 × 持股数量
+- **投资成本** = total_cost（累计投入资金）
+- **盈亏金额** = 总资产 - 投资成本
+
+#### 8.3.2 收益率计算
+- **累计收益率** = (总资产 - 投资成本) / 投资成本 × 100%
+- **年化收益率** = [(投资收益 ÷ 本金) ÷ 投资天数] × 365 × 100%
+- **投资天数** = 从last_trade_date到当前日期的天数
+
+#### 8.3.3 数据更新机制
+- **实时数据**：每次API调用时重新计算
+- **持久化数据**：存储在MySQL数据库中，交易时更新
+- **收益率数据**：不再存储，实时计算
+
+### 8.4 数据库配置
+
+- **数据库**: MySQL 8.0+
+- **数据库名**: wisehair
+- **表名**: tool_stock_tools_gold
+- **连接配置**: database/strategy_dao.py
+- **初始化脚本**: python database/init_database.py
+- **建表SQL**: database/create_table.sql
+- **备份建议**: 建议定期备份数据库，防止数据丢失
+
+### 8.5 建表SQL
+
+完整的建表SQL已保存在 `database/create_table.sql` 文件中，包含：
+- 基础表结构
+- 索引优化
+- 默认数据插入
+- 详细字段注释
+
+**注意**：所有业务逻辑计算都在Python代码中实现，MySQL只负责数据存储。
 
 
 ```

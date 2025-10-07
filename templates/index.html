@@ -86,6 +86,41 @@
             border-bottom-color: #4caf50;
         }
 
+        /* 权重配置样式 */
+        .weight-config {
+            background: rgba(255, 255, 255, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 2px solid #4caf50;
+        }
+
+        .weight-config h3 {
+            color: #2e7d32;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            text-align: center;
+        }
+
+        .weight-total {
+            text-align: center;
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(76, 175, 80, 0.1);
+            border-radius: 5px;
+            border: 1px solid #4caf50;
+        }
+
+        .weight-status-ok {
+            color: #4caf50;
+            margin-left: 10px;
+        }
+
+        .weight-status-error {
+            color: #f44336;
+            margin-left: 10px;
+        }
+
         /* 交易策略模块样式 */
         .trading-strategy {
             background: linear-gradient(135deg, #fff3e0, #fce4ec);
@@ -416,7 +451,7 @@
     <div class="container">
         <div class="header">
             <h1>🏆 黄金板块量化交易系统</h1>
-            <p>基于国际金价涨跌的智能交易策略分析平台</p>
+            <p>基于伦敦金价涨跌的智能交易策略分析平台</p>
         </div>
 
         <div class="main-content">
@@ -429,37 +464,30 @@
                         <div class="form-group">
                         <label for="stockSelect">选择股票</label>
                             <select id="stockSelect" name="stock_code">
-                                <option value="002155" selected>湖南黄金 (002155)</option>
-                                <option value="600547">山东黄金 (600547)</option>
-                                <option value="000975">银泰黄金 (000975)</option>
-                                <option value="600489">中金黄金 (600489)</option>
-                                <option value="002237">恒邦股份 (002237)</option>
-                                <option value="600988">赤峰黄金 (600988)</option>
+                                <option value="">正在加载股票列表...</option>
                             </select>
                         </div>
-                        
                         <div class="form-group">
-                        <label for="initInvestment">初始资金 (元)</label>
-                            <input type="number" id="initInvestment" name="init_investment" value="10000" min="1000" step="1000">
+                            <label for="analysisMonths">分析时间范围</label>
+                            <select id="analysisMonths" name="analysis_months">
+                                <option value="1">1个月</option>
+                                <option value="2">2个月</option>
+                                <option value="3">3个月</option>
+                                <option value="6" selected>6个月</option>
+                                <option value="12">12个月</option>
+                                <option value="24">24个月</option>
+                            </select>
                         </div>
-
                         <div class="form-group">
-                        <label for="analysisMonths">分析时间范围</label>
-                        <select id="analysisMonths" name="analysis_months">
-                            <option value="1">1个月</option>
-                            <option value="2">2个月</option>
-                            <option value="3">3个月</option>
-                            <option value="6" selected>6个月</option>
-                            <option value="12">12个月</option>
-                            <option value="24">24个月</option>
-                        </select>
+                            <label for="initInvestment">初始资金 (元)</label>
+                            <input type="number" id="initInvestment" name="init_investment" value="10000" min="1000" step="1000">
                         </div>
                     </div>
                     
                 <!-- 操作按钮 -->
                 <div style="text-align: center; margin: 20px 0;">
                     <button type="button" class="btn" id="analyzeBtn" onclick="analyzeStock()">
-                        📈 开始分析
+                        📈 查看基础信息
                     </button>
                 </div>
 
@@ -482,6 +510,67 @@
             <!-- 相似度分析模块 -->
             <div class="module similarity-analysis">
                 <h2>🔍 相似度分析模块</h2>
+                
+                <!-- 基础参数配置 -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="windowSize">滑动窗口大小</label>
+                        <select id="windowSize" name="window_size">
+                            <option value="3">3天</option>
+                            <option value="5" selected>5天</option>
+                            <option value="7">7天</option>
+                            <option value="10">10天</option>
+                            <option value="15">15天</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="maWindow">移动平均线窗口</label>
+                        <select id="maWindow" name="ma_window">
+                            <option value="5">MA5</option>
+                            <option value="10">MA10</option>
+                            <option value="20" selected>MA20</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 权重配置参数 -->
+                <div class="weight-config">
+                    <h3>📊 相似度权重配置</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="correlationWeight">价格变化相关性权重 (%)</label>
+                            <input type="number" id="correlationWeight" name="correlation_weight" value="30" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="trendWeight">趋势方向一致性权重 (%)</label>
+                            <input type="number" id="trendWeight" name="trend_weight" value="25" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="volatilityWeight">波动性相似度权重 (%)</label>
+                            <input type="number" id="volatilityWeight" name="volatility_weight" value="20" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="patternWeight">价格模式匹配权重 (%)</label>
+                            <input type="number" id="patternWeight" name="pattern_weight" value="15" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="volumeWeight">成交量关系权重 (%)</label>
+                            <input type="number" id="volumeWeight" name="volume_weight" value="10" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                        </div>
+                    </div>
+                    
+                    <!-- 权重总和显示 -->
+                    <div class="weight-total">
+                        <strong>权重总和: <span id="weightTotal">100</span>%</strong>
+                        <span id="weightStatus" class="weight-status-ok">✓ 权重配置正确</span>
+                    </div>
+                </div>
                 
                 <div style="text-align: center; margin: 20px 0;">
                     <button type="button" class="btn btn-similarity" onclick="analyzeSimilarity()">
@@ -603,9 +692,86 @@
         // DOM元素
         let loading, analyzeBtn;
 
+        // DOM元素获取函数
+        function getElementById(id) {
+            return document.getElementById(id);
+        }
+
+        // 获取表单数据
+        function getFormData() {
+            return {
+                stockCode: getElementById('stockSelect').value,
+                months: parseInt(getElementById('analysisMonths').value),
+                stockName: getElementById('stockSelect').selectedOptions[0].text,
+                baseInvestment: parseFloat(getElementById('baseInvestment').value),
+                stopLossRate: parseFloat(getElementById('stopLossRate').value),
+                maxProfitRate: parseFloat(getElementById('maxProfitRate').value),
+                profitCallbackRate: parseFloat(getElementById('profitCallbackRate').value),
+                minGoldChange: parseFloat(getElementById('minGoldChange').value),
+                minBuyAmount: parseFloat(getElementById('minBuyAmount').value),
+                transactionCostRate: parseFloat(getElementById('transactionCostRate').value),
+                strategyMode: getElementById('strategyMode').value
+            };
+        }
+
+        // 加载股票列表
+        async function loadStockList() {
+            try {
+                console.log('🔄 正在加载股票列表...');
+                const response = await makeApiRequest('/api/stock_list');
+                
+                if (response && Array.isArray(response)) {
+                    const stockSelect = getElementById('stockSelect');
+                    stockSelect.innerHTML = ''; // 清空现有选项
+                    
+                    // 添加默认选项
+                    const defaultOption = document.createElement('option');
+                    defaultOption.value = '';
+                    defaultOption.textContent = '请选择股票';
+                    stockSelect.appendChild(defaultOption);
+                    
+                    // 添加股票选项
+                    response.forEach((stock, index) => {
+                        const option = document.createElement('option');
+                        option.value = stock.code;
+                        option.textContent = `${stock.name} (${stock.code})`;
+                        
+                        // 设置第一个股票为默认选中
+                        if (index === 0) {
+                            option.selected = true;
+                        }
+                        
+                        stockSelect.appendChild(option);
+                    });
+                    
+                    console.log(`✅ 股票列表加载完成，共 ${response.length} 只股票`);
+                } else {
+                    console.error('❌ 股票列表数据格式错误');
+                    showError('股票列表数据格式错误');
+                }
+            } catch (error) {
+                console.error('❌ 加载股票列表失败:', error);
+                showError('加载股票列表失败: ' + error.message);
+                
+                // 如果加载失败，设置默认股票
+                const stockSelect = getElementById('stockSelect');
+                stockSelect.innerHTML = `
+                    <option value="002155" selected>湖南黄金 (002155)</option>
+                    <option value="600547">山东黄金 (600547)</option>
+                    <option value="000975">银泰黄金 (000975)</option>
+                    <option value="600489">中金黄金 (600489)</option>
+                    <option value="002237">恒邦股份 (002237)</option>
+                    <option value="600988">赤峰黄金 (600988)</option>
+                `;
+            }
+        }
+
         // 页面加载完成后初始化
         document.addEventListener('DOMContentLoaded', function() {
             console.log('🚀 页面DOM加载完成');
+            
+            // 初始化权重总和显示
+            updateWeightTotal();
             
             // 初始化DOM元素
             loading = document.getElementById('loading');
@@ -613,23 +779,36 @@
             
             console.log('DOM元素初始化完成');
             
-            // 开始自动刷新
-            startAutoRefresh();
-            
-            // 立即显示基础信息
-            setTimeout(() => {
-                console.log('🔄 页面初始化，显示基础信息...');
-                showRealtimeDataModule(); // 强制显示模块
-                displayBasicInfo({});
-            }, 1000);
+            // 加载股票列表
+            loadStockList().then(() => {
+                console.log('✅ 股票列表加载完成，开始初始化页面...');
+                
+                // 开始自动刷新
+                startAutoRefresh();
+                
+                // 立即显示基础信息
+                setTimeout(() => {
+                    console.log('🔄 页面初始化，显示基础信息...');
+                    showRealtimeDataModule(); // 强制显示模块
+                    displayBasicInfo(); // 调用不带参数的函数，让它自己获取数据
+                }, 1000);
+            }).catch((error) => {
+                console.error('❌ 股票列表加载失败，使用默认配置:', error);
+                // 即使股票列表加载失败，也继续初始化页面
+                startAutoRefresh();
+                setTimeout(() => {
+                    showRealtimeDataModule();
+                    displayBasicInfo();
+                }, 1000);
+            });
             
             // 添加股票选择变化监听器
-            const stockSelect = document.getElementById('stockSelect');
+            const stockSelect = getElementById('stockSelect');
             stockSelect.addEventListener('change', function() {
                 console.log('股票选择变化:', this.value);
                 // 强制显示模块并刷新数据
                 showRealtimeDataModule();
-                displayBasicInfo({});
+                displayBasicInfo(); // 调用不带参数的函数，让它自己获取数据
             });
             
             // 检查Plotly库
@@ -700,13 +879,11 @@
             console.log('🔍 开始分析股票数据...');
             
             try {
-                const stockCode = document.getElementById('stockSelect').value;
-                const months = document.getElementById('analysisMonths').value;
-                
+                const formData = getFormData();
                 const data = {
-                    months: parseInt(months),
-                    stock_code: stockCode,
-                    stock_name: document.getElementById('stockSelect').selectedOptions[0].text
+                    months: formData.months,
+                    stock_code: formData.stockCode,
+                    stock_name: formData.stockName
                 };
 
                 console.log('分析参数:', data);
@@ -733,7 +910,7 @@
                     if (result.chart_data) {
                         displayChart(result.chart_data, 'chartContainer', 'chartSection');
                     }
-                        } else {
+                } else {
                     showError('分析失败: ' + result.message);
                 }
             } catch (error) {
@@ -743,74 +920,89 @@
             }
         }
 
+        // 生成基础信息HTML内容
+        function generateBasicInfoHTML(status) {
+            // 计算总资产和收益率
+            const currentPrice = status.current_price || 0;
+            const position = status.position || {};
+            const totalShares = status.total_shares || 0;
+            const totalAssets = status.total_assets || 0;  // 当前市值
+            const totalCost = status.total_cost || 0;
+            const profitLoss = totalAssets - totalCost;  // 盈亏金额
+            const todayReturn = status.stock_change_rate || 0;  // 使用股价涨跌幅作为今日收益率
+            const cumulativeReturn = status.cumulative_return || 0;
+            const annualReturn = status.annual_return || 0;
+            
+            return `
+                <div class="data-item">
+                    <div class="label">当前股价</div>
+                    <div class="value">¥${currentPrice.toFixed(2)}</div>
+                </div>
+                <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">股价涨跌</div>
+                    <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
+                </div>
+                <div class="data-item">
+                    <div class="label">伦敦金价</div>
+                    <div class="value">$${status.gold_price.toFixed(2)}</div>
+                </div>
+                <div class="data-item ${status.gold_change_rate >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">金价涨跌</div>
+                    <div class="value">${(status.gold_change_rate * 100).toFixed(2)}%</div>
+                </div>
+                <div class="data-item">
+                    <div class="label">投资成本</div>
+                    <div class="value">¥${totalCost.toLocaleString()}</div>
+                </div>
+                <div class="data-item">
+                    <div class="label">总持股数</div>
+                    <div class="value">${totalShares.toFixed(2)}股</div>
+                </div>
+                <div class="data-item">
+                    <div class="label">总资产（当前市值）</div>
+                    <div class="value">¥${totalAssets.toLocaleString()}</div>
+                </div>
+                <div class="data-item ${profitLoss >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">盈亏金额</div>
+                    <div class="value">¥${profitLoss.toLocaleString()}</div>
+                </div>
+                <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">今日收益率</div>
+                    <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
+                </div>
+                <div class="data-item ${cumulativeReturn >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">累计收益率</div>
+                    <div class="value">${(cumulativeReturn * 100).toFixed(2)}%</div>
+                </div>
+                <div class="data-item ${annualReturn >= 0 ? 'positive' : 'negative'}">
+                    <div class="label">年化收益率</div>
+                    <div class="value">${(annualReturn * 100).toFixed(2)}%</div>
+                </div>
+            `;
+        }
+
         // 显示基础信息（使用传入的状态数据）
         async function displayBasicInfoWithStatus(status) {
-            const basicInfoDisplay = document.getElementById('basicInfoDisplay');
-            const basicInfoGrid = document.getElementById('basicInfoGrid');
+            const basicInfoDisplay = getElementById('basicInfoDisplay');
+            const basicInfoGrid = getElementById('basicInfoGrid');
             
             try {
                 console.log('使用传入的状态数据:', status);
-                
-                // 计算总资产和收益率
-                const currentPrice = status.current_price || 0;
-                const position = status.position || {};
-                const totalShares = position.shares || 0;
-                const totalAssets = currentPrice * totalShares;
-                const totalCost = status.base_investment || 0;
-                const todayReturn = status.stock_change_rate || 0;
-                const cumulativeReturn = totalCost > 0 ? (totalAssets - totalCost) / totalCost : 0;
-                const annualReturn = cumulativeReturn * 2; // 简化计算
+                console.log('JSON数据调试:', {
+                    total_cost: status.total_cost,
+                    total_shares: status.total_shares,
+                    cumulative_return: status.cumulative_return,
+                    annual_return: status.annual_return
+                });
                 
                 console.log('股价数据调试:', {
-                    currentPrice: currentPrice,
+                    currentPrice: status.current_price,
                     stockChangeRate: status.stock_change_rate,
                     goldPrice: status.gold_price,
                     goldChangeRate: status.gold_change_rate
                 });
                 
-                basicInfoGrid.innerHTML = `
-                    <div class="data-item">
-                    <div class="label">当前股价</div>
-                        <div class="value">¥${currentPrice.toFixed(2)}</div>
-                </div>
-                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
-                    <div class="label">股价涨跌</div>
-                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
-                    </div>
-                    <div class="data-item">
-                    <div class="label">国际金价</div>
-                    <div class="value">$${status.gold_price.toFixed(2)}</div>
-                </div>
-                    <div class="data-item ${status.gold_change_rate >= 0 ? 'positive' : 'negative'}">
-                    <div class="label">金价涨跌</div>
-                        <div class="value">${(status.gold_change_rate * 100).toFixed(2)}%</div>
-                    </div>
-                    <div class="data-item">
-                        <div class="label">总成本</div>
-                        <div class="value">¥${totalCost.toLocaleString()}</div>
-                </div>
-                    <div class="data-item">
-                        <div class="label">总持股数</div>
-                        <div class="value">${totalShares.toFixed(2)}股</div>
-                </div>
-                    <div class="data-item">
-                        <div class="label">总资产</div>
-                        <div class="value">¥${totalAssets.toLocaleString()}</div>
-                    </div>
-                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
-                        <div class="label">今日收益率</div>
-                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
-                </div>
-                    <div class="data-item ${cumulativeReturn >= 0 ? 'positive' : 'negative'}">
-                        <div class="label">累计收益率</div>
-                        <div class="value">${(cumulativeReturn * 100).toFixed(2)}%</div>
-                </div>
-                    <div class="data-item ${annualReturn >= 0 ? 'positive' : 'negative'}">
-                        <div class="label">年化收益率</div>
-                        <div class="value">${(annualReturn * 100).toFixed(2)}%</div>
-                </div>
-            `;
-                
+                basicInfoGrid.innerHTML = generateBasicInfoHTML(status);
                 basicInfoDisplay.style.display = 'block';
             } catch (error) {
                 console.error('显示基础信息失败:', error);
@@ -820,7 +1012,7 @@
 
         // 强制显示实时数据模块
         function showRealtimeDataModule() {
-            const basicInfoDisplay = document.getElementById('basicInfoDisplay');
+            const basicInfoDisplay = getElementById('basicInfoDisplay');
             if (basicInfoDisplay) {
                 basicInfoDisplay.style.display = 'block';
                 console.log('✅ 强制显示实时数据模块');
@@ -832,106 +1024,57 @@
         // 显示基础信息
         async function displayBasicInfo(result) {
             console.log('🔄 开始显示基础信息...');
-            const basicInfoDisplay = document.getElementById('basicInfoDisplay');
-            const basicInfoGrid = document.getElementById('basicInfoGrid');
+            const basicInfoDisplay = getElementById('basicInfoDisplay');
+            const basicInfoGrid = getElementById('basicInfoGrid');
             
             console.log('🔍 DOM元素检查:', {
                 basicInfoDisplay: basicInfoDisplay,
                 basicInfoGrid: basicInfoGrid
             });
             
+            console.log('🔍 股票选择器检查:', {
+                stockSelect: getElementById('stockSelect'),
+                selectedValue: getElementById('stockSelect')?.value
+            });
+            
             try {
                 // 从API获取真实的状态数据
-                const stockCode = document.getElementById('stockSelect').value;
-                console.log('🔍 当前选择的股票代码:', stockCode);
+                const formData = getFormData();
+                console.log('🔍 当前选择的股票代码:', formData.stockCode);
                 
-                if (!stockCode) {
+                if (!formData.stockCode) {
                     console.error('❌ 股票代码为空');
                     showError('请选择股票');
                     return;
                 }
 
                 console.log('📡 正在请求API...');
-                const response = await fetch(`/api/current_status?stock_code=${stockCode}`);
+                const response = await fetch(`/api/current_status?stock_code=${formData.stockCode}`);
                 console.log('📡 API响应状态:', response.status);
                 
                 const status = await response.json();
                 console.log('📊 获取到的状态数据:', status);
                 
-            if (status.error) {
+                if (status.error) {
                     console.error('❌ 获取状态失败:', status.error);
                     showError('获取实时数据失败: ' + status.error);
-                return;
-            }
-            
-                // 计算总资产和收益率
-                console.log('🧮 开始计算数据...');
-                const currentPrice = status.current_price || 0;
-                const position = status.position || {};
-                const totalShares = position.shares || 0;
-                const totalAssets = currentPrice * totalShares;
-                const totalCost = status.base_investment || 0;
-                const todayReturn = status.stock_change_rate || 0;
-                const cumulativeReturn = totalCost > 0 ? (totalAssets - totalCost) / totalCost : 0;
-                const annualReturn = cumulativeReturn * 2; // 简化计算
+                    return;
+                }
                 
                 console.log('📊 计算后的数据:', {
-                    currentPrice: currentPrice,
+                    currentPrice: status.current_price,
                     stockChangeRate: status.stock_change_rate,
                     goldPrice: status.gold_price,
                     goldChangeRate: status.gold_change_rate,
-                    totalShares: totalShares,
-                    totalAssets: totalAssets,
-                    totalCost: totalCost,
-                    todayReturn: todayReturn,
-                    cumulativeReturn: cumulativeReturn,
-                    annualReturn: annualReturn
+                    totalShares: status.total_shares,
+                    totalAssets: status.total_assets,
+                    totalCost: status.total_cost,
+                    cumulativeReturn: status.cumulative_return,
+                    annualReturn: status.annual_return
                 });
                 
                 console.log('🎨 开始生成HTML内容...');
-                basicInfoGrid.innerHTML = `
-                    <div class="data-item">
-                    <div class="label">当前股价</div>
-                        <div class="value">¥${currentPrice.toFixed(2)}</div>
-                </div>
-                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
-                    <div class="label">股价涨跌</div>
-                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
-                    </div>
-                    <div class="data-item">
-                    <div class="label">国际金价</div>
-                    <div class="value">$${status.gold_price.toFixed(2)}</div>
-                </div>
-                    <div class="data-item ${status.gold_change_rate >= 0 ? 'positive' : 'negative'}">
-                    <div class="label">金价涨跌</div>
-                        <div class="value">${(status.gold_change_rate * 100).toFixed(2)}%</div>
-                    </div>
-                    <div class="data-item">
-                        <div class="label">总成本</div>
-                        <div class="value">¥${totalCost.toLocaleString()}</div>
-                </div>
-                    <div class="data-item">
-                        <div class="label">总持股数</div>
-                        <div class="value">${totalShares.toFixed(2)}股</div>
-                </div>
-                    <div class="data-item">
-                        <div class="label">总资产</div>
-                        <div class="value">¥${totalAssets.toLocaleString()}</div>
-                    </div>
-                    <div class="data-item ${todayReturn >= 0 ? 'positive' : 'negative'}">
-                        <div class="label">今日收益率</div>
-                        <div class="value">${(todayReturn * 100).toFixed(2)}%</div>
-                </div>
-                    <div class="data-item ${cumulativeReturn >= 0 ? 'positive' : 'negative'}">
-                        <div class="label">累计收益率</div>
-                        <div class="value">${(cumulativeReturn * 100).toFixed(2)}%</div>
-                </div>
-                    <div class="data-item ${annualReturn >= 0 ? 'positive' : 'negative'}">
-                        <div class="label">年化收益率</div>
-                        <div class="value">${(annualReturn * 100).toFixed(2)}%</div>
-                </div>
-            `;
-                
+                basicInfoGrid.innerHTML = generateBasicInfoHTML(status);
                 basicInfoDisplay.style.display = 'block';
                 console.log('✅ 实时数据模块已显示');
                 console.log('🔍 模块内容检查:', {
@@ -953,8 +1096,8 @@
                 return;
             }
             
-                const container = document.getElementById(containerId);
-                const section = document.getElementById(sectionId);
+                const container = getElementById(containerId);
+                const section = getElementById(sectionId);
                 
                 if (!container || !section) {
                     console.error('❌ 图表容器未找到');
@@ -1011,44 +1154,66 @@
             console.log('🔍 开始相似度分析...');
             
             try {
-                const stockCode = document.getElementById('stockSelect').value;
-                const months = document.getElementById('analysisMonths').value;
+                const formData = getFormData();
+                showLoading();
                 
-                    showLoading();
-                    
+                // 获取相似度分析参数
+                const similarityParams = {
+                    stock_code: formData.stockCode,
+                    months: formData.months,
+                    window_size: parseInt(document.getElementById('windowSize').value),
+                    correlation_weight: parseInt(document.getElementById('correlationWeight').value),
+                    trend_weight: parseInt(document.getElementById('trendWeight').value),
+                    volatility_weight: parseInt(document.getElementById('volatilityWeight').value),
+                    pattern_weight: parseInt(document.getElementById('patternWeight').value),
+                    volume_weight: parseInt(document.getElementById('volumeWeight').value),
+                    ma_window: parseInt(document.getElementById('maWindow').value)
+                };
+                
+                console.log('相似度分析参数:', similarityParams);
+                
+                // 验证权重总和
+                const totalWeight = similarityParams.correlation_weight + 
+                                  similarityParams.trend_weight + 
+                                  similarityParams.volatility_weight + 
+                                  similarityParams.pattern_weight + 
+                                  similarityParams.volume_weight;
+                
+                if (totalWeight !== 100) {
+                    showError(`权重总和必须为100%，当前为${totalWeight}%`);
+                    return;
+                }
+                
                 const response = await fetch('/api/similarity_analysis', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                    body: JSON.stringify({
-                        stock_code: stockCode,
-                        months: parseInt(months)
-                    })
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(similarityParams)
                 });
 
-                    const result = await response.json();
+                const result = await response.json();
                 console.log('相似度分析结果:', result);
 
-                    hideLoading();
+                hideLoading();
 
-                    if (result.success) {
+                if (result.success) {
                     displaySimilarityResult(result);
-                    } else {
+                } else {
                     showError('相似度分析失败: ' + result.message);
-                    }
-                } catch (error) {
+                }
+            } catch (error) {
                 console.error('相似度分析错误:', error);
-                    hideLoading();
+                hideLoading();
                 showError('相似度分析失败: ' + error.message);
             }
         }
 
         // 显示相似度分析结果
         function displaySimilarityResult(result) {
-            const similarityResult = document.getElementById('similarityResult');
-            const similarityScore = document.getElementById('similarityScore');
-            const dimensionScores = document.getElementById('dimensionScores');
+            const similarityResult = getElementById('similarityResult');
+            const similarityScore = getElementById('similarityScore');
+            const dimensionScores = getElementById('dimensionScores');
             
             // 显示相似度分数
             const score = result.similarity_score || 0;
@@ -1099,21 +1264,18 @@
             console.log('🚀 开始执行策略...');
             
             try {
-                const formData = new FormData();
-                formData.append('base_investment', document.getElementById('baseInvestment').value);
-                formData.append('stop_loss_rate', document.getElementById('stopLossRate').value);
-                formData.append('max_profit_rate', document.getElementById('maxProfitRate').value);
-                formData.append('profit_callback_rate', document.getElementById('profitCallbackRate').value);
-                formData.append('stock_code', document.getElementById('stockSelect').value);
-                formData.append('strategy_mode', document.getElementById('strategyMode').value);
-                formData.append('min_gold_change', document.getElementById('minGoldChange').value);
-                formData.append('min_buy_amount', document.getElementById('minBuyAmount').value);
-                formData.append('transaction_cost_rate', document.getElementById('transactionCostRate').value);
-                
-                const strategyParams = {};
-                for (let [key, value] of formData.entries()) {
-                    strategyParams[key] = parseFloat(value) || value;
-                }
+                const formData = getFormData();
+                const strategyParams = {
+                    base_investment: formData.baseInvestment,
+                    stop_loss_rate: formData.stopLossRate / 100, // 转换为小数
+                    max_profit_rate: formData.maxProfitRate / 100, // 转换为小数
+                    profit_callback_rate: formData.profitCallbackRate / 100, // 转换为小数
+                    stock_code: formData.stockCode,
+                    strategy_mode: formData.strategyMode,
+                    min_gold_change: formData.minGoldChange / 100, // 转换为小数
+                    min_buy_amount: formData.minBuyAmount,
+                    transaction_cost_rate: formData.transactionCostRate / 100 // 转换为小数
+                };
                 
                 console.log('策略参数:', strategyParams);
                 showLoading();
@@ -1145,8 +1307,8 @@
         
         // 显示策略执行结果
         function displayStrategyResult(result) {
-            const strategyResult = document.getElementById('strategyResult');
-            const strategyStats = document.getElementById('strategyStats');
+            const strategyResult = getElementById('strategyResult');
+            const strategyStats = getElementById('strategyStats');
             
             const summary = result.strategy_summary || {};
             
@@ -1189,14 +1351,14 @@
         async function refreshData() {
             console.log('🔄 刷新数据...');
             try {
-                // 获取当前选择的股票代码
-                const stockCode = document.getElementById('stockSelect').value;
-                if (!stockCode) {
+                const formData = getFormData();
+                console.log('🔍 刷新时的股票代码:', formData.stockCode);
+                if (!formData.stockCode) {
                     console.log('未选择股票，跳过刷新');
                     return;
                 }
                 
-                const response = await fetch(`/api/current_status?stock_code=${stockCode}`);
+                const response = await fetch(`/api/current_status?stock_code=${formData.stockCode}`);
                 const status = await response.json();
                 
                 if (status.error) {
@@ -1205,7 +1367,7 @@
                 }
                 
                 // 更新基础信息显示
-                const basicInfoDisplay = document.getElementById('basicInfoDisplay');
+                const basicInfoDisplay = getElementById('basicInfoDisplay');
                 if (basicInfoDisplay && basicInfoDisplay.style.display !== 'none') {
                     // 直接使用获取到的状态数据，避免重复请求
                     await displayBasicInfoWithStatus(status);
@@ -1221,12 +1383,64 @@
         function showError(message) {
             console.error('❌', message);
             // 这里可以添加错误提示UI
+            alert('错误: ' + message);
         }
 
         // 显示成功信息
         function showSuccess(message) {
             console.log('✅', message);
             // 这里可以添加成功提示UI
+            alert('成功: ' + message);
+        }
+
+        // 更新权重总和显示
+        function updateWeightTotal() {
+            const correlation = parseInt(document.getElementById('correlationWeight').value) || 0;
+            const trend = parseInt(document.getElementById('trendWeight').value) || 0;
+            const volatility = parseInt(document.getElementById('volatilityWeight').value) || 0;
+            const pattern = parseInt(document.getElementById('patternWeight').value) || 0;
+            const volume = parseInt(document.getElementById('volumeWeight').value) || 0;
+            
+            const total = correlation + trend + volatility + pattern + volume;
+            
+            const weightTotalElement = document.getElementById('weightTotal');
+            const weightStatusElement = document.getElementById('weightStatus');
+            
+            if (weightTotalElement) {
+                weightTotalElement.textContent = total;
+            }
+            
+            if (weightStatusElement) {
+                if (total === 100) {
+                    weightStatusElement.textContent = '✓ 权重配置正确';
+                    weightStatusElement.className = 'weight-status-ok';
+                } else {
+                    weightStatusElement.textContent = `✗ 权重总和应为100%`;
+                    weightStatusElement.className = 'weight-status-error';
+                }
+            }
+        }
+
+        // 公共的API请求函数
+        async function makeApiRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                console.error('API请求失败:', error);
+                throw error;
+            }
         }
 
         // 页面卸载时清理定时器

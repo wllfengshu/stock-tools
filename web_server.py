@@ -261,9 +261,58 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
                 close=gold_kline_data['close'],
                 name='伦敦金',
                 increasing_line_color='red',
-                decreasing_line_color='green'
+                decreasing_line_color='green',
+                hoverinfo='x+y',
+                hovertext=[f'日期: {date}<br>开盘: ${open:.2f}<br>最高: ${high:.2f}<br>最低: ${low:.2f}<br>收盘: ${close:.2f}' 
+                          for date, open, high, low, close in zip(
+                              gold_kline_data['date'],
+                              gold_kline_data['open'],
+                              gold_kline_data['high'],
+                              gold_kline_data['low'],
+                              gold_kline_data['close']
+                          )]
             ), row=2, col=1)
             print(f"✅ 伦敦金K线图已添加")
+            
+            # 添加伦敦金移动平均线 - MA5
+            if len(gold_data) >= 5:
+                gold_ma5 = gold_data['收盘'].rolling(window=5).mean()
+                gold_ma5_data = {
+                    'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
+                    'ma5': gold_ma5.tolist()
+                }
+                fig.add_trace(
+                    go.Scatter(
+                        x=gold_ma5_data['date'],
+                        y=gold_ma5_data['ma5'],
+                        mode='lines',
+                        name='伦敦金MA5',
+                        line=dict(color='blue', width=2),
+                        hovertemplate='<b>伦敦金MA5</b><br>日期: %{x}<br>价格: $%{y:.2f}<extra></extra>'
+                    ),
+                    row=2, col=1
+                )
+                print(f"✅ 伦敦金MA5已添加")
+            
+            # 添加伦敦金移动平均线 - MA20
+            if len(gold_data) >= 20:
+                gold_ma20 = gold_data['收盘'].rolling(window=20).mean()
+                gold_ma20_data = {
+                    'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
+                    'ma20': gold_ma20.tolist()
+                }
+                fig.add_trace(
+                    go.Scatter(
+                        x=gold_ma20_data['date'],
+                        y=gold_ma20_data['ma20'],
+                        mode='lines',
+                        name='伦敦金MA20',
+                        line=dict(color='orange', width=2),
+                        hovertemplate='<b>伦敦金MA20</b><br>日期: %{x}<br>价格: $%{y:.2f}<extra></extra>'
+                    ),
+                    row=2, col=1
+                )
+                print(f"✅ 伦敦金MA20已添加")
     else:
         print(f"⚠️ 伦敦金数据为空或None，跳过伦敦金K线图")
     
@@ -356,7 +405,8 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
                 showgrid=True,
                 gridwidth=1,
                 gridcolor='lightgray',
-                matches=None
+                matches=None,
+                tickformat='%Y-%m-%d'
             ),
             yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
             yaxis2=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
@@ -379,7 +429,8 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
                 showgrid=True,
                 gridwidth=1,
                 gridcolor='lightgray',
-                matches=None
+                matches=None,
+                tickformat='%Y-%m-%d'
             ),
             yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
             yaxis2=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
@@ -399,6 +450,7 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
             tickmode='auto',
             nticks=10,  # 限制网格数量
             tickformat='%Y-%m-%d',  # 设置日期格式
+            type='category',  # 强制使用分类轴
             row=1, col=1
         )
         fig.update_yaxes(
@@ -422,6 +474,7 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
             tickmode='auto',
             nticks=10,  # 限制网格数量
             tickformat='%Y-%m-%d',  # 设置日期格式
+            type='category',  # 强制使用分类轴
             row=2, col=1
         )
         fig.update_yaxes(
@@ -444,6 +497,7 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
             tickmode='auto',
             nticks=10,  # 限制网格数量
             tickformat='%Y-%m-%d',  # 设置日期格式
+            type='category',  # 强制使用分类轴
             row=3, col=1
         )
         fig.update_yaxes(
@@ -468,6 +522,7 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
             tickmode='auto',
             nticks=10,  # 限制网格数量
             tickformat='%Y-%m-%d',  # 设置日期格式
+            type='category',  # 强制使用分类轴
             row=1, col=1
         )
         fig.update_yaxes(
@@ -490,6 +545,7 @@ def create_chart_data(data, stock_name, gold_data=None, trade_points=None):
             tickmode='auto',
             nticks=10,  # 限制网格数量
             tickformat='%Y-%m-%d',  # 设置日期格式
+            type='category',  # 强制使用分类轴
             row=2, col=1
         )
         fig.update_yaxes(
@@ -531,8 +587,10 @@ def get_stock_list():
         {"code": "600489", "name": "中金黄金", "sector": "黄金开采"},
         {"code": "002237", "name": "恒邦股份", "sector": "黄金冶炼"},
         {"code": "600988", "name": "赤峰黄金", "sector": "黄金开采"},
-        {"code": "002155", "name": "湖南黄金", "sector": "黄金开采"},
-        {"code": "600311", "name": "荣华实业", "sector": "黄金开采"}
+        {"code": "600311", "name": "荣华实业", "sector": "黄金开采"},
+        {"code": "000060", "name": "中金岭南", "sector": "有色金属"},
+        {"code": "600362", "name": "江西铜业", "sector": "有色金属"},
+        {"code": "000630", "name": "铜陵有色", "sector": "有色金属"}
     ]
     return jsonify(gold_stocks)
 
@@ -621,6 +679,16 @@ def analyze_similarity():
         data = request.get_json()
         stock_code = data.get('stock_code')
         months = data.get('months')
+        
+        # 获取新的参数配置
+        window_size = data.get('window_size', 5)
+        correlation_weight = data.get('correlation_weight', 30) / 100.0
+        trend_weight = data.get('trend_weight', 25) / 100.0
+        volatility_weight = data.get('volatility_weight', 20) / 100.0
+        pattern_weight = data.get('pattern_weight', 15) / 100.0
+        volume_weight = data.get('volume_weight', 10) / 100.0
+        ma_window = data.get('ma_window', 20)
+        
         if not months:
             return jsonify({
                 'success': False,
@@ -637,16 +705,28 @@ def analyze_similarity():
         print(f"🔍 开始相似度分析...")
         print(f"   股票代码: {stock_code}")
         print(f"   时间范围: {months}个月")
+        print(f"   滑动窗口: {window_size}天")
+        print(f"   权重配置: 相关性={correlation_weight:.2f}, 趋势={trend_weight:.2f}, 波动性={volatility_weight:.2f}, 模式={pattern_weight:.2f}, 成交量={volume_weight:.2f}")
+        print(f"   移动平均线窗口: {ma_window}")
+        
+        # 创建新的相似度分析器实例，使用自定义权重
+        custom_analyzer = SimilarityAnalyzer(
+            correlation=correlation_weight,
+            trend=trend_weight,
+            volatility=volatility_weight,
+            pattern=pattern_weight,
+            volume=volume_weight
+        )
         
         # 获取股票数据
-        if not similarity_analyzer.prepare_data(months, stock_code):
+        if not custom_analyzer.prepare_data(months, stock_code):
             return jsonify({
                 'success': False,
                 'message': f'无法获取股票{stock_code}数据'
             })
         
-        stock_data = similarity_analyzer.stock_data
-        gold_data = similarity_analyzer.gold_data
+        stock_data = custom_analyzer.stock_data
+        gold_data = custom_analyzer.gold_data
         
         if stock_data is None or stock_data.empty:
             return jsonify({
@@ -666,7 +746,17 @@ def analyze_similarity():
         print(f"股票数据索引示例: {stock_data.index[:3]}")
         print(f"金价数据索引示例: {gold_data.index[:3]}")
         
-        analysis_result = similarity_analyzer.calculate_comprehensive_similarity(stock_data, gold_data)
+        # 准备移动平均线窗口配置
+        ma_windows = [5, 10, ma_window] if ma_window not in [5, 10] else [5, 10, 20]
+        
+        # 使用自定义窗口大小计算每日相似度
+        analysis_result = custom_analyzer.calculate_comprehensive_similarity(stock_data, gold_data, ma_windows)
+        
+        # 重新计算每日相似度，使用自定义窗口大小
+        if window_size != 5:  # 如果窗口大小不是默认值，重新计算
+            print(f"使用自定义窗口大小 {window_size} 重新计算每日相似度...")
+            daily_similarity = custom_analyzer.calculate_daily_similarity(stock_data, gold_data, window_size, ma_windows)
+            analysis_result['daily_similarity'] = daily_similarity
         
         # 生成相似度图表数据
         print("开始生成相似度图表...")
@@ -680,7 +770,7 @@ def analyze_similarity():
             'analysis_summary': analysis_result['analysis_summary'],
             'daily_similarity': analysis_result.get('daily_similarity', {}),
             'chart_data': similarity_chart_data,
-            'stock_name': similarity_analyzer.get_stock_name(stock_code)
+            'stock_name': custom_analyzer.get_stock_name(stock_code)
         })
         
     except Exception as e:
@@ -751,8 +841,14 @@ def get_current_status():
         
         # 处理NaN值，确保JSON序列化正常
         def clean_nan(value):
-            """清理NaN值，如果为NaN则报错"""
+            """清理NaN值，如果为NaN则报错，并转换Decimal为float"""
             import math
+            from decimal import Decimal
+            
+            # 转换Decimal为float
+            if isinstance(value, Decimal):
+                value = float(value)
+            
             if isinstance(value, float) and math.isnan(value):
                 raise ValueError(f"数据包含NaN值: {value}")
             return value
@@ -768,10 +864,20 @@ def get_current_status():
         # 清理所有可能包含NaN的值
         try:
             cleaned_status = {
+                # 实时数据
                 'current_price': clean_nan(status['current_price']),
                 'stock_change_rate': clean_nan(status['stock_change_rate']),
                 'gold_price': clean_nan(status['gold_price']),
                 'gold_change_rate': clean_nan(status['gold_change_rate']),
+                'total_assets': clean_nan(status.get('total_assets', 0)),
+                
+                # 持久化数据（来自JSON文件）
+                'total_cost': status.get('total_cost', 0),
+                'total_shares': status.get('total_shares', 0),
+                'cumulative_return': status.get('cumulative_return', 0),
+                'annual_return': status.get('annual_return', 0),
+                
+                # 其他数据
                 'trade_count': status.get('trade_count', 0),
                 'base_investment': status.get('base_investment', 0),
                 'stop_loss_rate': status.get('stop_loss_rate', 0),

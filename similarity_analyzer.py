@@ -38,7 +38,8 @@ class SimilarityAnalyzer:
     适用于股票价格与金价走势的对比分析
     """
     
-    def __init__(self):
+    def __init__(self, correlation=0.30, trend=0.25, volatility=0.20, 
+                pattern=0.15, volume=0.10):
         """
         初始化相似度分析器
         
@@ -49,12 +50,13 @@ class SimilarityAnalyzer:
         - pattern: 价格模式匹配 (15%)
         - volume: 成交量关系 (10%)
         """
+        # 使用传入的参数设置权重
         self.weights = {
-            'correlation': 0.30,      # 价格变化相关性
-            'trend': 0.25,            # 趋势方向一致性  
-            'volatility': 0.20,       # 波动性相似度
-            'pattern': 0.15,          # 价格模式匹配
-            'volume': 0.10           # 成交量关系
+            'correlation': correlation,      # 价格变化相关性
+            'trend': trend,                  # 趋势方向一致性  
+            'volatility': volatility,        # 波动性相似度
+            'pattern': pattern,              # 价格模式匹配
+            'volume': volume                 # 成交量关系
         }
         
         # 数据存储
@@ -63,6 +65,31 @@ class SimilarityAnalyzer:
         
         print("K线图走势相似度分析器初始化完成")
         print(f"权重配置: {self.weights}")
+    
+    def update_weights(self, correlation=None, trend=None, volatility=None, 
+                      pattern=None, volume=None):
+        """
+        动态更新权重配置
+        
+        Args:
+            correlation: 价格变化相关性权重
+            trend: 趋势方向一致性权重
+            volatility: 波动性相似度权重
+            pattern: 价格模式匹配权重
+            volume: 成交量关系权重
+        """
+        if correlation is not None:
+            self.weights['correlation'] = correlation
+        if trend is not None:
+            self.weights['trend'] = trend
+        if volatility is not None:
+            self.weights['volatility'] = volatility
+        if pattern is not None:
+            self.weights['pattern'] = pattern
+        if volume is not None:
+            self.weights['volume'] = volume
+            
+        print(f"权重配置已更新: {self.weights}")
     
     def prepare_data(self, months=6, stock_code='002155'):
         """
@@ -303,13 +330,14 @@ class SimilarityAnalyzer:
         }
         return stock_names.get(stock_code, f'股票{stock_code}')
     
-    def preprocess_data(self, stock_data, gold_data):
+    def preprocess_data(self, stock_data, gold_data, ma_windows=[5, 10, 20]):
         """
         数据预处理和标准化
         
         Args:
             stock_data: 股票数据 (DataFrame)
             gold_data: 金价数据 (DataFrame)
+            ma_windows: 移动平均线窗口列表，默认[5, 10, 20]
             
         Returns:
             tuple: (处理后的股票数据, 处理后的金价数据, 是否有成交量数据)
@@ -333,7 +361,7 @@ class SimilarityAnalyzer:
         gold_data['涨跌幅'] = gold_data['收盘'].pct_change()
         
         # 计算移动平均线
-        for window in [5, 10, 20]:
+        for window in ma_windows:
             stock_data[f'MA{window}'] = stock_data['收盘'].rolling(window=window).mean()
             gold_data[f'MA{window}'] = gold_data['收盘'].rolling(window=window).mean()
         
@@ -617,7 +645,7 @@ class SimilarityAnalyzer:
             print(f"   成交量计算失败: {e}")
             return 50.0  # 返回中性分数
     
-    def calculate_comprehensive_similarity(self, stock_data, gold_data):
+    def calculate_comprehensive_similarity(self, stock_data, gold_data, ma_windows=[5, 10, 20]):
         """
         计算综合相似度分数
         
@@ -629,6 +657,7 @@ class SimilarityAnalyzer:
         Args:
             stock_data: 股票数据
             gold_data: 金价数据
+            ma_windows: 移动平均线窗口列表，默认[5, 10, 20]
             
         Returns:
             dict: 包含综合相似度和详细分析的字典
@@ -637,7 +666,7 @@ class SimilarityAnalyzer:
         print("=" * 50)
         
         # 数据预处理
-        stock_processed, gold_processed, has_volume_data = self.preprocess_data(stock_data, gold_data)
+        stock_processed, gold_processed, has_volume_data = self.preprocess_data(stock_data, gold_data, ma_windows)
         
         # 计算各个维度的相似度
         similarity_scores = {}
@@ -684,7 +713,7 @@ class SimilarityAnalyzer:
         
         return analysis_report
     
-    def calculate_daily_similarity(self, stock_data, gold_data, window_size=5):
+    def calculate_daily_similarity(self, stock_data, gold_data, window_size=5, ma_windows=[5, 10, 20]):
         """
         计算每日相似度时间序列
         
@@ -692,6 +721,7 @@ class SimilarityAnalyzer:
             stock_data: 股票数据
             gold_data: 金价数据
             window_size: 滑动窗口大小
+            ma_windows: 移动平均线窗口列表，默认[5, 10, 20]
             
         Returns:
             dict: 包含每日相似度数据的字典
@@ -699,7 +729,7 @@ class SimilarityAnalyzer:
         print(f"计算每日相似度，窗口大小: {window_size}")
         
         # 数据预处理
-        stock_processed, gold_processed, has_volume_data = self.preprocess_data(stock_data, gold_data)
+        stock_processed, gold_processed, has_volume_data = self.preprocess_data(stock_data, gold_data, ma_windows)
         
         # 确保数据长度一致
         min_length = min(len(stock_processed), len(gold_processed))
@@ -861,10 +891,37 @@ def test_similarity_analyzer():
     })
     gold_data.set_index('日期', inplace=True)
     
-    # 创建分析器并测试
-    analyzer = SimilarityAnalyzer()
-    result = analyzer.calculate_comprehensive_similarity(stock_data, gold_data)
+    # 测试默认权重配置
+    print("\n=== 测试默认权重配置 ===")
+    analyzer1 = SimilarityAnalyzer()
+    result1 = analyzer1.calculate_comprehensive_similarity(stock_data, gold_data)
+    print(f"默认权重配置结果: {result1['comprehensive_score']:.2f}")
     
-    print("测试完成!")
-    return result
+    # 测试自定义权重配置
+    print("\n=== 测试自定义权重配置 ===")
+    analyzer2 = SimilarityAnalyzer(
+        correlation=0.50,  # 50%
+        trend=0.30,        # 30%
+        volatility=0.10,   # 10%
+        pattern=0.05,      # 5%
+        volume=0.05        # 5%
+    )
+    result2 = analyzer2.calculate_comprehensive_similarity(stock_data, gold_data)
+    print(f"自定义权重配置结果: {result2['comprehensive_score']:.2f}")
+    
+    # 测试动态权重更新
+    print("\n=== 测试动态权重更新 ===")
+    analyzer3 = SimilarityAnalyzer()
+    analyzer3.update_weights(correlation=0.40, trend=0.35, volatility=0.15, pattern=0.05, volume=0.05)
+    result3 = analyzer3.calculate_comprehensive_similarity(stock_data, gold_data)
+    print(f"动态更新权重配置结果: {result3['comprehensive_score']:.2f}")
+    
+    # 测试自定义移动平均线窗口
+    print("\n=== 测试自定义移动平均线窗口 ===")
+    analyzer4 = SimilarityAnalyzer()
+    result4 = analyzer4.calculate_comprehensive_similarity(stock_data, gold_data, ma_windows=[3, 7, 15])
+    print(f"自定义MA窗口配置结果: {result4['comprehensive_score']:.2f}")
+    
+    print("\n✅ 所有测试完成!")
+    return result1, result2, result3, result4
 
