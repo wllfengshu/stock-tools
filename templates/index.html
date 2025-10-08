@@ -708,6 +708,21 @@
                         </div>
                     </div>
                     
+                    <!-- 回测时间范围选择 -->
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="backtestMonths">回测时间范围</label>
+                            <select id="backtestMonths" name="backtest_months">
+                                <option value="1">1个月</option>
+                                <option value="3">3个月</option>
+                                <option value="6" selected>6个月</option>
+                                <option value="12">12个月</option>
+                                <option value="24">24个月</option>
+                            </select>
+                            <div class="parameter-description">选择历史回测的时间范围</div>
+                        </div>
+                    </div>
+                    
                 <!-- 操作按钮 -->
                 <div style="text-align: center; margin: 20px 0;">
                     <button type="button" class="btn btn-strategy" onclick="executeStrategy()">
@@ -770,7 +785,8 @@
                 minBuyAmount: parseFloat(getElementById('minBuyAmount').value),
                 transactionCostRate: parseFloat(getElementById('transactionCostRate').value),
                 maxHoldDays: parseInt(getElementById('maxHoldDays').value),
-                strategyMode: getElementById('strategyMode').value
+                strategyMode: getElementById('strategyMode').value,
+                backtestMonths: parseInt(getElementById('backtestMonths').value)
             };
         }
 
@@ -1400,14 +1416,105 @@
         // 历史回测
         async function runBacktest() {
             console.log('📊 开始历史回测...');
-            showLoading();
             
-            // 这里应该调用回测API
-            // 暂时显示模拟结果
-            setTimeout(() => {
+            try {
+                const formData = getFormData();
+                const backtestParams = {
+                    stock_code: formData.stockCode,
+                    months: formData.backtestMonths, // 使用回测时间范围
+                    base_investment: formData.baseInvestment,
+                    stop_loss_rate: formData.stopLossRate / 100, // 转换为小数
+                    max_profit_rate: formData.maxProfitRate / 100, // 转换为小数
+                    profit_callback_rate: formData.profitCallbackRate / 100, // 转换为小数
+                    min_gold_change: formData.minGoldChange / 100, // 转换为小数
+                    min_buy_amount: formData.minBuyAmount,
+                    transaction_cost_rate: formData.transactionCostRate / 100, // 转换为小数
+                    max_hold_days: formData.maxHoldDays,
+                    user_id: 100001,
+                    auth: 'default_user'
+                };
+                
+                console.log('回测参数:', backtestParams);
+                showLoading();
+                
+                const response = await fetch('/api/backtest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(backtestParams)
+                });
+
+                const result = await response.json();
+                console.log('回测结果:', result);
+
                 hideLoading();
-                showSuccess('历史回测完成！');
-            }, 2000);
+                    
+                if (result.success) {
+                    displayBacktestResult(result.backtest_result);
+                } else {
+                    showError('回测失败: ' + result.error);
+                }
+            } catch (error) {
+                console.error('回测错误:', error);
+                hideLoading();
+                showError('回测失败: ' + error.message);
+            }
+        }
+        
+        // 显示回测结果
+        function displayBacktestResult(backtestResult) {
+            const strategyResult = getElementById('strategyResult');
+            const strategyStats = getElementById('strategyStats');
+            
+            const stats = backtestResult.statistics || {};
+            const period = backtestResult.backtest_period || {};
+            
+            // 显示回测统计信息
+            strategyStats.innerHTML = `
+                <div class="stat-card">
+                    <div class="value">${period.days || 0}</div>
+                    <div class="label">回测天数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${stats.total_trades || 0}</div>
+                    <div class="label">总交易次数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">¥${(stats.total_net_profit || 0).toFixed(2)}</div>
+                    <div class="label">总盈利</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${stats.win_trades || 0}次</div>
+                    <div class="label">盈利交易</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${(stats.win_rate || 0).toFixed(2)}%</div>
+                    <div class="label">胜率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${(stats.annual_return || 0).toFixed(2)}%</div>
+                    <div class="label">年化收益率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">${(stats.max_drawdown || 0).toFixed(2)}%</div>
+                    <div class="label">最大回撤</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value">¥${(stats.final_market_value || 0).toFixed(2)}</div>
+                    <div class="label">最终资产</div>
+                </div>
+            `;
+            
+            // 显示回测图表
+            if (backtestResult.chart_data) {
+                displayChart(backtestResult.chart_data, 'strategyChartContainer', 'strategyChartSection');
+            }
+            
+            strategyResult.style.display = 'block';
+            
+            // 显示成功消息
+            showSuccess(`历史回测完成！回测期间：${period.start_date} 至 ${period.end_date}`);
         }
 
         // 刷新数据

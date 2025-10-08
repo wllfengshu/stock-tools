@@ -26,8 +26,6 @@ warnings.filterwarnings('ignore')
 # 导入图表相关库
 import plotly.graph_objects as go
 
-# 添加akshare源码目录到Python路径
-sys.path.insert(0, os.path.abspath('./akshare'))
 import akshare as ak
 
 # 使用tslearn库进行DTW计算 - 专业的时间序列分析库

@@ -10,15 +10,13 @@ import os
 import json
 from datetime import datetime, timedelta
 import time
-
-# 添加akshare源码目录到Python路径
-sys.path.insert(0, os.path.abspath('./akshare'))
+import pandas as pd
 import akshare as ak
 
 # 添加数据库模块
 sys.path.insert(0, os.path.abspath('./database'))
-from strategy_dao import StrategyDAO
-from table_entity import ToolStockToolsGold
+from database.strategy_dao import StrategyDAO
+from database.table_entity import ToolStockToolsGold
 
 class TradingStrategy:
     """
@@ -146,7 +144,7 @@ class TradingStrategy:
         try:
             # 从数据库加载用户信息
             user_data = self.dao.load_user_info_by_auth(self.auth)
-            
+                
             if user_data:
                 # 恢复状态
                 self.total_cost = user_data.total_cost
@@ -725,4 +723,357 @@ class TradingStrategy:
             'history_max_profit': self.history_max_profit,
             'last_trade_date': self.last_trade_date.strftime('%Y-%m-%d') if self.last_trade_date else None
         }
+
+    def run_backtest(self, stock_code='002155', months=6, start_date=None, end_date=None):
+        """
+        运行历史回测
+        
+        Args:
+            stock_code: 股票代码
+            months: 回测月数
+            start_date: 开始日期 (YYYY-MM-DD格式)
+            end_date: 结束日期 (YYYY-MM-DD格式)
+            
+        Returns:
+            dict: 回测结果，包含交易记录和收益曲线数据
+        """
+        print(f"\n{'='*60}")
+        print(f"开始历史回测 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"股票代码: {stock_code}")
+        print(f"回测月数: {months}")
+        print(f"{'='*60}")
+        
+        try:
+            # 计算回测日期范围
+            if start_date and end_date:
+                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            else:
+                end_dt = datetime.now()
+                start_dt = end_dt - timedelta(days=months * 30)
+            
+            print(f"回测时间范围: {start_dt.strftime('%Y-%m-%d')} 到 {end_dt.strftime('%Y-%m-%d')}")
+            
+            # 获取历史数据
+            print("正在获取历史股票数据...")
+            stock_data = ak.stock_zh_a_hist(
+                symbol=stock_code,
+                period="daily",
+                start_date=start_dt.strftime('%Y%m%d'),
+                end_date=end_dt.strftime('%Y%m%d')
+            )
+            
+            if stock_data is None or stock_data.empty:
+                return {'error': '无法获取股票历史数据'}
+            
+            print(f"获取到股票数据: {len(stock_data)}条记录")
+            
+            # 获取历史金价数据
+            print("正在获取历史金价数据...")
+            gold_data = ak.futures_foreign_hist(symbol='XAU')
+            
+            if gold_data is None or gold_data.empty:
+                return {'error': '无法获取金价历史数据'}
+            
+            print(f"获取到金价数据: {len(gold_data)}条记录")
+            
+            # 初始化回测状态
+            backtest_state = {
+                'total_cost': 0,
+                'total_shares': 0,
+                'total_investment': 0,
+                'history_max_profit': 0,
+                'last_total_profit': 0,
+                'current_position': None,
+                'trade_history': [],
+                'last_trade_date': None
+            }
+            
+            # 收益曲线数据
+            profit_curve = []
+            daily_returns = []
+            
+            # 按日期遍历进行回测
+            for i, (date, row) in enumerate(stock_data.iterrows()):
+                current_date = date.date()
+                current_stock_price = float(row['收盘'])
+                
+                # 获取对应日期的金价数据
+                gold_price_data = self._get_gold_price_for_date(gold_data, current_date)
+                if gold_price_data is None:
+                    continue
+                
+                current_gold_price = gold_price_data['current']
+                previous_gold_price = gold_price_data['previous']
+                
+                if previous_gold_price is None or previous_gold_price == 0:
+                    continue
+                
+                # 计算金价涨跌幅
+                gold_change_rate = (current_gold_price - previous_gold_price) / previous_gold_price
+                
+                # 执行交易逻辑
+                trade_result = self._execute_backtest_trade(
+                    backtest_state, current_date, current_stock_price, 
+                    gold_change_rate, current_gold_price
+                )
+                
+                # 计算当前总资产和收益
+                current_market_value = backtest_state['total_shares'] * current_stock_price
+                current_total_profit = current_market_value - backtest_state['total_cost']
+                current_profit_rate = current_total_profit / backtest_state['total_cost'] if backtest_state['total_cost'] > 0 else 0
+                
+                # 更新历史最大盈利
+                if current_total_profit > backtest_state['history_max_profit']:
+                    backtest_state['history_max_profit'] = current_total_profit
+                
+                # 记录收益曲线数据
+                profit_curve.append({
+                    'date': current_date.strftime('%Y-%m-%d'),
+                    'total_cost': backtest_state['total_cost'],
+                    'market_value': current_market_value,
+                    'total_profit': current_total_profit,
+                    'profit_rate': current_profit_rate,
+                    'stock_price': current_stock_price,
+                    'gold_price': current_gold_price,
+                    'gold_change_rate': gold_change_rate,
+                    'has_position': backtest_state['total_shares'] > 0,
+                    'trade_action': trade_result.get('action', 'HOLD')
+                })
+                
+                # 记录日收益率
+                if i > 0:
+                    daily_return = (current_stock_price - stock_data.iloc[i-1]['收盘']) / stock_data.iloc[i-1]['收盘']
+                    daily_returns.append(daily_return)
+            
+            # 计算回测统计
+            total_trades = len(backtest_state['trade_history'])
+            total_net_profit = sum([trade.get('total_profit', 0) for trade in backtest_state['trade_history']])
+            win_trades = len([trade for trade in backtest_state['trade_history'] if trade.get('total_profit', 0) > 0])
+            win_rate = (win_trades / total_trades * 100) if total_trades > 0 else 0
+            
+            # 计算年化收益率
+            days = (end_dt - start_dt).days
+            annual_return = (total_net_profit / backtest_state['total_cost'] * 365 / days * 100) if backtest_state['total_cost'] > 0 and days > 0 else 0
+            
+            # 计算最大回撤
+            max_drawdown = self._calculate_max_drawdown(profit_curve)
+            
+            print(f"\n回测完成:")
+            print(f"  总交易次数: {total_trades}")
+            print(f"  总盈利: {total_net_profit:.2f}元")
+            print(f"  胜率: {win_rate:.2f}%")
+            print(f"  年化收益率: {annual_return:.2f}%")
+            print(f"  最大回撤: {max_drawdown:.2f}%")
+            
+            return {
+                'success': True,
+                'backtest_period': {
+                    'start_date': start_dt.strftime('%Y-%m-%d'),
+                    'end_date': end_dt.strftime('%Y-%m-%d'),
+                    'days': days
+                },
+                'statistics': {
+                    'total_trades': total_trades,
+                    'total_net_profit': total_net_profit,
+                    'win_trades': win_trades,
+                    'win_rate': win_rate,
+                    'annual_return': annual_return,
+                    'max_drawdown': max_drawdown,
+                    'final_market_value': profit_curve[-1]['market_value'] if profit_curve else 0,
+                    'final_profit_rate': profit_curve[-1]['profit_rate'] if profit_curve else 0
+                },
+                'profit_curve': profit_curve,
+                'trade_history': backtest_state['trade_history'],
+                'daily_returns': daily_returns
+            }
+            
+        except Exception as e:
+            error_msg = f'回测失败: {str(e)}'
+            print(f"[错误] {error_msg}")
+            import traceback
+            traceback.print_exc()
+            return {'error': error_msg}
+    
+    def _get_gold_price_for_date(self, gold_data, target_date):
+        """获取指定日期的金价数据"""
+        try:
+            # 找到最接近目标日期的金价数据
+            gold_data['date'] = pd.to_datetime(gold_data.index).date
+            
+            # 查找目标日期或之前最近的数据
+            available_dates = gold_data[gold_data['date'] <= target_date]
+            if available_dates.empty:
+                return None
+            
+            # 获取当前日期和前一天的数据
+            current_data = available_dates.iloc[-1]
+            previous_data = available_dates.iloc[-2] if len(available_dates) > 1 else None
+            
+            # 尝试不同的价格列名
+            price_columns = ['收盘', 'close', 'Close', 'CLOSE', '价格', 'price']
+            current_price = None
+            previous_price = None
+            
+            for col in price_columns:
+                if col in current_data:
+                    current_price = float(current_data[col])
+                    if previous_data is not None and col in previous_data:
+                        previous_price = float(previous_data[col])
+                    break
+            
+            if current_price is None:
+                # 如果列名匹配失败，使用第二列（通常是价格）
+                current_price = float(current_data.iloc[1])
+                if previous_data is not None:
+                    previous_price = float(previous_data.iloc[1])
+            
+            return {
+                'current': current_price,
+                'previous': previous_price
+            }
+            
+        except Exception as e:
+            print(f"获取金价数据失败: {e}")
+            return None
+    
+    def _execute_backtest_trade(self, backtest_state, current_date, current_stock_price, gold_change_rate, current_gold_price):
+        """执行回测交易逻辑"""
+        trade_result = {'action': 'HOLD'}
+        
+        # 检查买入条件
+        should_buy, buy_amount = self.should_buy_improved(gold_change_rate)
+        
+        # 检查卖出条件（如果有持仓）
+        should_sell = False
+        sell_reason = ""
+        if backtest_state['total_shares'] > 0:
+            should_sell, sell_reason = self._should_sell_backtest(backtest_state, current_stock_price)
+        
+        if should_buy:
+            # 执行买入
+            transaction_cost = self.calculate_transaction_cost(buy_amount)
+            net_buy_amount = buy_amount - transaction_cost
+            shares = net_buy_amount / current_stock_price
+            
+            # 更新回测状态
+            backtest_state['total_cost'] += buy_amount
+            backtest_state['total_shares'] += shares
+            backtest_state['total_investment'] += buy_amount
+            
+            # 记录当前持仓信息
+            backtest_state['current_position'] = {
+                'has_position': True,
+                'buy_price': current_stock_price,
+                'shares': shares,
+                'buy_amount': buy_amount,
+                'net_buy_amount': net_buy_amount,
+                'transaction_cost': transaction_cost,
+                'buy_date': current_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'max_profit_rate': 0,
+                'current_profit_rate': 0
+            }
+            
+            backtest_state['last_trade_date'] = current_date
+            trade_result['action'] = 'BUY'
+            trade_result['shares'] = shares
+            trade_result['amount'] = buy_amount
+            
+        elif should_sell and backtest_state['total_shares'] > 0:
+            # 执行卖出
+            sell_amount = backtest_state['total_shares'] * current_stock_price
+            transaction_cost = self.calculate_transaction_cost(sell_amount)
+            net_sell_amount = sell_amount - transaction_cost
+            
+            # 计算总盈利
+            total_profit = net_sell_amount - backtest_state['total_cost']
+            total_profit_rate = total_profit / backtest_state['total_cost'] if backtest_state['total_cost'] > 0 else 0
+            
+            # 记录交易历史
+            backtest_state['trade_history'].append({
+                'sell_price': current_stock_price,
+                'shares': backtest_state['total_shares'],
+                'sell_amount': sell_amount,
+                'net_sell_amount': net_sell_amount,
+                'total_cost': backtest_state['total_cost'],
+                'total_profit': total_profit,
+                'total_profit_rate': total_profit_rate,
+                'sell_date': current_date.strftime('%Y-%m-%d %H:%M:%S'),
+                'sell_reason': sell_reason,
+                'transaction_cost': transaction_cost
+            })
+            
+            # 更新历史最大盈利
+            if total_profit > backtest_state['history_max_profit']:
+                backtest_state['history_max_profit'] = total_profit
+            
+            backtest_state['last_trade_date'] = current_date
+            trade_result['action'] = 'SELL'
+            trade_result['total_profit'] = total_profit
+            trade_result['total_profit_rate'] = total_profit_rate
+            
+            # 清空持仓
+            backtest_state['total_shares'] = 0
+            backtest_state['total_cost'] = 0
+            backtest_state['current_position'] = None
+        
+        return trade_result
+    
+    def _should_sell_backtest(self, backtest_state, current_price):
+        """回测中的卖出判断逻辑"""
+        # 计算当前持仓市值
+        current_market_value = backtest_state['total_shares'] * current_price
+        
+        # 计算当前总盈利
+        current_total_profit = current_market_value - backtest_state['total_cost']
+        
+        # 计算当前盈利率
+        current_profit_rate = current_total_profit / backtest_state['total_cost'] if backtest_state['total_cost'] > 0 else 0
+        
+        # 1. 止损检查
+        if current_profit_rate <= -self.stop_loss_rate:
+            return True, f"止损：当前亏损{abs(current_profit_rate)*100:.2f}%"
+        
+        # 2. 盈利回调检查
+        if backtest_state['history_max_profit'] > 0:
+            profit_decrease = backtest_state['history_max_profit'] - current_total_profit
+            profit_decrease_rate = profit_decrease / backtest_state['history_max_profit'] if backtest_state['history_max_profit'] > 0 else 0
+            
+            if profit_decrease_rate >= self.profit_callback_rate:
+                return True, f"盈利回调：从{backtest_state['history_max_profit']:.2f}元回调到{current_total_profit:.2f}元，缩小{profit_decrease_rate*100:.2f}%"
+        
+        # 3. 长期持有检查
+        if backtest_state['current_position'] and 'buy_date' in backtest_state['current_position']:
+            try:
+                buy_date = datetime.strptime(backtest_state['current_position']['buy_date'], '%Y-%m-%d %H:%M:%S')
+                days_held = (datetime.now() - buy_date).days
+                if days_held > self.max_hold_days:
+                    return True, f"长期持有：已持有{days_held}天"
+            except Exception as e:
+                print(f"计算持仓天数时出错: {e}")
+        
+        # 4. 大幅盈利检查
+        if current_profit_rate > self.max_profit_rate:
+            return True, f"大幅盈利：当前盈利{current_profit_rate*100:.2f}%"
+        
+        return False, "继续持有"
+    
+    def _calculate_max_drawdown(self, profit_curve):
+        """计算最大回撤"""
+        if not profit_curve:
+            return 0
+        
+        max_drawdown = 0
+        peak_value = profit_curve[0]['market_value']
+        
+        for point in profit_curve:
+            market_value = point['market_value']
+            if market_value > peak_value:
+                peak_value = market_value
+            
+            drawdown = (peak_value - market_value) / peak_value if peak_value > 0 else 0
+            if drawdown > max_drawdown:
+                max_drawdown = drawdown
+        
+        return max_drawdown * 100  # 转换为百分比
 

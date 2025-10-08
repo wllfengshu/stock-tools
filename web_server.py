@@ -527,3 +527,207 @@ def get_strategy_trades():
             'success': False,
             'error': f'获取交易历史失败: {str(e)}'
         })
+
+@app.route('/api/backtest', methods=['POST'])
+def run_backtest():
+    """运行历史回测"""
+    try:
+        data = request.get_json()
+        
+        # 获取回测参数
+        stock_code = data.get('stock_code')
+        months = data.get('months', 6)
+        start_date = data.get('start_date')
+        end_date = data.get('end_date')
+        
+        # 获取策略参数
+        base_investment = data.get('base_investment', 10000)
+        stop_loss_rate = data.get('stop_loss_rate', 0.10)
+        profit_callback_rate = data.get('profit_callback_rate', 0.01)
+        max_profit_rate = data.get('max_profit_rate', 0.50)
+        min_gold_change = data.get('min_gold_change', 0.002)
+        min_buy_amount = data.get('min_buy_amount', 100)
+        transaction_cost_rate = data.get('transaction_cost_rate', 0.001)
+        max_hold_days = data.get('max_hold_days', 30)
+        
+        # 获取用户参数
+        user_id = data.get('user_id', 100001)
+        auth = data.get('auth', 'default_user')
+        
+        # 检查必要参数
+        if not stock_code:
+            return jsonify({
+                'success': False,
+                'error': '请提供股票代码'
+            })
+        
+        # 更新全局策略实例的参数
+        trading_strategy.update_strategy_params(
+            user_id=user_id,
+            auth=auth,
+            base_investment=base_investment,
+            stop_loss_rate=stop_loss_rate,
+            profit_callback_rate=profit_callback_rate,
+            max_profit_rate=max_profit_rate,
+            min_gold_change=min_gold_change,
+            min_buy_amount=min_buy_amount,
+            transaction_cost_rate=transaction_cost_rate,
+            max_hold_days=max_hold_days
+        )
+        
+        # 运行回测
+        backtest_result = trading_strategy.run_backtest(
+            stock_code=stock_code,
+            months=months,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        if 'error' in backtest_result:
+            return jsonify({
+                'success': False,
+                'error': backtest_result['error']
+            })
+        
+        # 生成收益曲线图表
+        if backtest_result.get('profit_curve'):
+            chart_data = create_backtest_chart(backtest_result['profit_curve'], stock_code)
+            backtest_result['chart_data'] = chart_data
+        
+        return jsonify({
+            'success': True,
+            'backtest_result': backtest_result
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'回测失败: {str(e)}'
+        })
+
+def create_backtest_chart(profit_curve, stock_code):
+    """创建回测收益曲线图表"""
+    try:
+        import plotly.graph_objects as go
+        from plotly.subplots import make_subplots
+        
+        if not profit_curve:
+            return None
+        
+        # 提取数据
+        dates = [point['date'] for point in profit_curve]
+        market_values = [point['market_value'] for point in profit_curve]
+        total_costs = [point['total_cost'] for point in profit_curve]
+        profit_rates = [point['profit_rate'] * 100 for point in profit_curve]  # 转换为百分比
+        stock_prices = [point['stock_price'] for point in profit_curve]
+        gold_prices = [point['gold_price'] for point in profit_curve]
+        trade_actions = [point['trade_action'] for point in profit_curve]
+        
+        # 创建子图
+        fig = make_subplots(
+            rows=3, cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.08,
+            subplot_titles=('收益曲线', '股票价格', '金价走势'),
+            row_heights=[0.4, 0.3, 0.3]
+        )
+        
+        # 1. 收益曲线图
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=market_values,
+            mode='lines',
+            name='总资产',
+            line=dict(color='blue', width=2),
+            hovertemplate='<b>日期:</b> %{x}<br><b>总资产:</b> ¥%{y:.2f}<extra></extra>'
+        ), row=1, col=1)
+        
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=total_costs,
+            mode='lines',
+            name='投资成本',
+            line=dict(color='red', width=2, dash='dash'),
+            hovertemplate='<b>日期:</b> %{x}<br><b>投资成本:</b> ¥%{y:.2f}<extra></extra>'
+        ), row=1, col=1)
+        
+        # 添加交易点标记
+        buy_dates = [dates[i] for i, action in enumerate(trade_actions) if action == 'BUY']
+        buy_values = [market_values[i] for i, action in enumerate(trade_actions) if action == 'BUY']
+        
+        sell_dates = [dates[i] for i, action in enumerate(trade_actions) if action == 'SELL']
+        sell_values = [market_values[i] for i, action in enumerate(trade_actions) if action == 'SELL']
+        
+        if buy_dates:
+            fig.add_trace(go.Scatter(
+                x=buy_dates,
+                y=buy_values,
+                mode='markers',
+                name='买入点',
+                marker=dict(
+                    symbol='triangle-up',
+                    size=10,
+                    color='green',
+                    line=dict(width=2, color='darkgreen')
+                ),
+                hovertemplate='<b>买入点</b><br>日期: %{x}<br>总资产: ¥%{y:.2f}<extra></extra>'
+            ), row=1, col=1)
+        
+        if sell_dates:
+            fig.add_trace(go.Scatter(
+                x=sell_dates,
+                y=sell_values,
+                mode='markers',
+                name='卖出点',
+                marker=dict(
+                    symbol='triangle-down',
+                    size=10,
+                    color='red',
+                    line=dict(width=2, color='darkred')
+                ),
+                hovertemplate='<b>卖出点</b><br>日期: %{x}<br>总资产: ¥%{y:.2f}<extra></extra>'
+            ), row=1, col=1)
+        
+        # 2. 股票价格图
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=stock_prices,
+            mode='lines',
+            name='股票价格',
+            line=dict(color='orange', width=2),
+            hovertemplate='<b>日期:</b> %{x}<br><b>股票价格:</b> ¥%{y:.2f}<extra></extra>'
+        ), row=2, col=1)
+        
+        # 3. 金价走势图
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=gold_prices,
+            mode='lines',
+            name='金价',
+            line=dict(color='gold', width=2),
+            hovertemplate='<b>日期:</b> %{x}<br><b>金价:</b> $%{y:.2f}<extra></extra>'
+        ), row=3, col=1)
+        
+        # 更新布局
+        fig.update_layout(
+            title=f'{stock_code} 历史回测收益曲线',
+            height=800,
+            showlegend=True,
+            template='plotly_white',
+            autosize=True,
+            margin=dict(l=50, r=50, t=80, b=50)
+        )
+        
+        # 设置Y轴标题
+        fig.update_yaxes(title_text="资产价值 (元)", row=1, col=1)
+        fig.update_yaxes(title_text="股票价格 (元)", row=2, col=1)
+        fig.update_yaxes(title_text="金价 (美元)", row=3, col=1)
+        
+        # 隐藏底部缩略图
+        fig.update_xaxes(rangeslider=dict(visible=False))
+        
+        return fig.to_json()
+        
+    except Exception as e:
+        print(f"创建回测图表失败: {e}")
+        return None

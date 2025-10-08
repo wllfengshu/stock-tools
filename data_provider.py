@@ -16,10 +16,7 @@
 
 import sys
 import os
-import json
 
-# 添加akshare源码目录到Python路径
-sys.path.insert(0, os.path.abspath('./akshare'))
 import akshare as ak
 import pandas as pd
 import numpy as np
@@ -32,6 +29,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # 导入数据库操作类
+sys.path.insert(0, os.path.abspath('./database'))
 from database.strategy_dao import StrategyDAO
 from database.table_entity import ToolStockToolsGold
 
@@ -43,17 +41,17 @@ class DataProvider:
     提供股票、金价等金融数据的获取和预处理功能
     """
     
-    def __init__(self):
-        """
-        初始化数据提供者
-        """
-        # 初始化数据库连接
-        self.strategy_dao = StrategyDAO()
-        # 确保数据库表存在
-        # self.strategy_dao.create_table_if_not_exists()
-        # 默认用户认证
-        self.default_auth = 'abcdefaddd'
-        print("✅ 数据提供者初始化完成")
+    # def __init__(self):
+    #     """
+    #     初始化数据提供者
+    #     """
+    #     # 初始化数据库连接
+    #     self.strategy_dao = StrategyDAO()
+    #     # 确保数据库表存在
+    #     # self.strategy_dao.create_table_if_not_exists()
+    #     # 默认用户认证
+    #     self.default_auth = 'abcdefaddd'
+    #     print("✅ 数据提供者初始化完成")
     
     def get_stock_data(self, months=6, stock_code='002155'):
         """
