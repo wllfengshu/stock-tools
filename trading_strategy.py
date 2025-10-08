@@ -35,7 +35,8 @@ class TradingStrategy:
         """
         # 默认用户标识
         self.user_id = 100001
-        self.auth = 'default_user'
+        self.auth = 'abcdefaddd'
+        self.dao = StrategyDAO()
         
         # 默认策略参数
         self.base_investment = 1000
@@ -60,9 +61,6 @@ class TradingStrategy:
         self.total_investment = 0  # 总投资金额
         self.history_max_profit = 0  # 历史最大盈利金额
         self.last_total_profit = 0  # 上一次的总盈利
-        
-        # 数据库DAO
-        self.dao = StrategyDAO()
         
         # 加载历史状态
         self.load_state()

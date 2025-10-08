@@ -87,52 +87,73 @@ class StrategyDAO:
             if not self.connect():
                 return False
             
-            # 检查记录是否存在
-            self.cursor.execute(
-                "SELECT tool_stock_tools_gold_id FROM tool_stock_tools_gold WHERE tool_stock_tools_gold_id = %s",
-                (strategy_data.tool_stock_tools_gold_id,)
-            )
-            existing = self.cursor.fetchone()
+            # 检查记录是否存在 - 处理null值情况
+            where_conditions = []
+            where_values = []
             
-            if existing:
-                # 更新现有记录
-                sql = """
-                UPDATE tool_stock_tools_gold SET
-                    total_cost = %s, total_shares = %s, history_max_profit = %s, last_total_profit = %s,
-                    position = %s, trade_history = %s, last_trade_date = %s, update_time = %s
-                WHERE tool_stock_tools_gold_id = %s
-                """
-                self.cursor.execute(sql, (
-                    strategy_data.total_cost,
-                    strategy_data.total_shares,
-                    strategy_data.history_max_profit,
-                    strategy_data.last_total_profit,
-                    strategy_data.position,
-                    strategy_data.trade_history,
-                    strategy_data.last_trade_date,
-                    datetime.now(),
-                    strategy_data.tool_stock_tools_gold_id
-                ))
+            if strategy_data.tool_stock_tools_gold_id is not None:
+                where_conditions.append("tool_stock_tools_gold_id = %s")
+                where_values.append(strategy_data.tool_stock_tools_gold_id)
+            
+            if strategy_data.auth is not None and strategy_data.auth != '':
+                where_conditions.append("auth = %s")
+                where_values.append(strategy_data.auth)
+            
+            if where_conditions:
+                sql = f"SELECT * FROM tool_stock_tools_gold WHERE {' OR '.join(where_conditions)}"
+                self.cursor.execute(sql, where_values)
+                existing_data = self.cursor.fetchone()
             else:
-                # 插入新记录
-                sql = """
-                INSERT INTO tool_stock_tools_gold 
-                (tool_stock_tools_gold_id, total_cost, total_shares, history_max_profit, last_total_profit, 
-                 position, trade_history, last_trade_date, create_time, update_time)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                """
-                self.cursor.execute(sql, (
-                    strategy_data.tool_stock_tools_gold_id,
-                    strategy_data.total_cost,
-                    strategy_data.total_shares,
-                    strategy_data.history_max_profit,
-                    strategy_data.last_total_profit,
-                    strategy_data.position,
-                    strategy_data.trade_history,
-                    strategy_data.last_trade_date,
-                    datetime.now(),
-                    datetime.now()
-                ))
+                existing_data = None
+            
+            if existing_data:
+                update_fields = []
+                update_values = []
+                
+                # 检查每个字段是否有值，有值才加入更新列表
+                if strategy_data.total_cost is not None:
+                    update_fields.append("total_cost = %s")
+                    update_values.append(strategy_data.total_cost)
+                
+                if strategy_data.total_shares is not None:
+                    update_fields.append("total_shares = %s")
+                    update_values.append(strategy_data.total_shares)
+                
+                if strategy_data.history_max_profit is not None:
+                    update_fields.append("history_max_profit = %s")
+                    update_values.append(strategy_data.history_max_profit)
+                
+                if strategy_data.last_total_profit is not None:
+                    update_fields.append("last_total_profit = %s")
+                    update_values.append(strategy_data.last_total_profit)
+                
+                if strategy_data.position is not None:
+                    update_fields.append("position = %s")
+                    update_values.append(strategy_data.position)
+                
+                if strategy_data.trade_history is not None:
+                    update_fields.append("trade_history = %s")
+                    update_values.append(strategy_data.trade_history)
+                
+                # 处理last_trade_date空值情况
+                if strategy_data.last_trade_date is not None:
+                    update_fields.append("last_trade_date = %s")
+                    update_values.append(strategy_data.last_trade_date)
+                
+                # 总是更新update_time
+                update_fields.append("update_time = %s")
+                update_values.append(datetime.now())
+                
+                # 添加WHERE条件的参数
+                update_values.append(strategy_data.tool_stock_tools_gold_id)
+                
+                if update_fields:
+                    sql = f"""
+                    UPDATE tool_stock_tools_gold SET
+                        {', '.join(update_fields)}
+                    WHERE tool_stock_tools_gold_id = %s
+                    """
+                    self.cursor.execute(sql, update_values)
             
             self.connection.commit()
             logger.info("策略状态保存成功")

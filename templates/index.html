@@ -539,20 +539,21 @@
                     <div class="form-group">
                         <label for="windowSize">滑动窗口大小</label>
                         <select id="windowSize" name="window_size">
+                            <option value="2" selected>2天</option>
                             <option value="3">3天</option>
-                            <option value="5" selected>5天</option>
+                            <option value="5">5天</option>
                             <option value="7">7天</option>
                             <option value="10">10天</option>
-                            <option value="15">15天</option>
+                            <option value="15">20天</option>
                         </select>
                         <div class="parameter-description">将时间序列数据分割成固定大小的窗口，在每个窗口内计算相似度，窗口越小越敏感</div>
                     </div>
                     <div class="form-group">
                         <label for="maWindow">移动平均线窗口</label>
                         <select id="maWindow" name="ma_window">
-                            <option value="5">MA5</option>
+                            <option value="5" selected>MA5</option>
                             <option value="10">MA10</option>
-                            <option value="20" selected>MA20</option>
+                            <option value="20">MA20</option>
                         </select>
                         <div class="parameter-description">计算多条移动平均线（MA5、MA10、MA20）的相似度，用于趋势分析</div>
                     </div>
