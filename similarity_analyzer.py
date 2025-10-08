@@ -23,6 +23,9 @@ from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
 
+# 导入图表相关库
+import plotly.graph_objects as go
+
 # 添加akshare源码目录到Python路径
 sys.path.insert(0, os.path.abspath('./akshare'))
 import akshare as ak
@@ -330,7 +333,8 @@ class SimilarityAnalyzer:
         }
         return stock_names.get(stock_code, f'股票{stock_code}')
     
-    def preprocess_data(self, stock_data, gold_data, ma_windows=[5, 10, 20]):
+    def preprocess_data(self, stock_data, gold_data, ma_windows=[5, 10, 20], 
+                       move_day=0, data_missing_handling=1):
         """
         数据预处理和标准化
         
@@ -338,11 +342,38 @@ class SimilarityAnalyzer:
             stock_data: 股票数据 (DataFrame)
             gold_data: 金价数据 (DataFrame)
             ma_windows: 移动平均线窗口列表，默认[5, 10, 20]
+            move_day: 平移天数，负数左移，正数右移
+            data_missing_handling: 数据缺失处理方式，0=不处理，1=跳过，2=用前一天数据填充
             
         Returns:
             tuple: (处理后的股票数据, 处理后的金价数据, 是否有成交量数据)
         """
         print("开始数据预处理...")
+        print(f"平移天数: {move_day}, 数据缺失处理: {data_missing_handling}")
+        print(f"移动平均线窗口: {ma_windows}")
+        
+        # 1. 数据缺失处理
+        if data_missing_handling == 2:  # 用前一天数据填充
+            print("使用前一天数据填充缺失值...")
+            stock_data = stock_data.ffill()
+            gold_data = gold_data.ffill()
+        elif data_missing_handling == 1:  # 跳过缺失数据
+            print("跳过缺失数据...")
+            stock_data = stock_data.dropna()
+            gold_data = gold_data.dropna()
+        # data_missing_handling == 0 时不处理，保持原样
+        
+        # 2. 平移天数处理
+        if move_day != 0:
+            print(f"应用平移天数: {move_day}天")
+            if move_day > 0:  # 正数右移：金价数据向右移动，即用前几天的金价数据
+                # 金价数据向右移动move_day天，相当于用前move_day天的金价数据
+                gold_data = gold_data.shift(move_day)
+                print(f"金价数据向右移动{move_day}天")
+            else:  # 负数左移：金价数据向左移动，即用后几天的金价数据
+                # 金价数据向左移动|move_day|天，相当于用后|move_day|天的金价数据
+                gold_data = gold_data.shift(move_day)
+                print(f"金价数据向左移动{abs(move_day)}天")
         
         # 检查成交量数据可用性
         has_stock_volume = '成交量' in stock_data.columns and not stock_data['成交量'].isna().all()
@@ -371,8 +402,10 @@ class SimilarityAnalyzer:
         
         # 只删除必要的NaN值，保留更多数据
         # 删除前几行的NaN（由于移动平均线计算）
-        stock_data = stock_data.dropna(subset=['MA20'])  # 只删除MA20为NaN的行
-        gold_data = gold_data.dropna(subset=['MA20'])
+        # 使用最大的移动平均线窗口来确定需要删除的NaN行数
+        max_ma_window = max(ma_windows)
+        stock_data = stock_data.dropna(subset=[f'MA{max_ma_window}'])
+        gold_data = gold_data.dropna(subset=[f'MA{max_ma_window}'])
         
         # 确保索引是日期类型
         if not isinstance(stock_data.index, pd.DatetimeIndex):
@@ -645,7 +678,8 @@ class SimilarityAnalyzer:
             print(f"   成交量计算失败: {e}")
             return 50.0  # 返回中性分数
     
-    def calculate_comprehensive_similarity(self, stock_data, gold_data, ma_windows=[5, 10, 20]):
+    def calculate_comprehensive_similarity(self, stock_data, gold_data, ma_windows=[5, 10, 20],
+                                         move_day=0, data_missing_handling=1, window_size=5):
         """
         计算综合相似度分数
         
@@ -658,15 +692,21 @@ class SimilarityAnalyzer:
             stock_data: 股票数据
             gold_data: 金价数据
             ma_windows: 移动平均线窗口列表，默认[5, 10, 20]
+            move_day: 平移天数，负数左移，正数右移
+            data_missing_handling: 数据缺失处理方式，0=不处理，1=跳过，2=用前一天数据填充
+            window_size: 滑动窗口大小，用于计算每日相似度
             
         Returns:
             dict: 包含综合相似度和详细分析的字典
         """
         print("开始综合相似度分析...")
         print("=" * 50)
+        print(f"参数配置: 滑动窗口={window_size}, 移动平均线窗口={ma_windows}, 平移天数={move_day}, 数据缺失处理={data_missing_handling}")
         
         # 数据预处理
-        stock_processed, gold_processed, has_volume_data = self.preprocess_data(stock_data, gold_data, ma_windows)
+        stock_processed, gold_processed, has_volume_data = self.preprocess_data(
+            stock_data, gold_data, ma_windows, move_day, data_missing_handling
+        )
         
         # 计算各个维度的相似度
         similarity_scores = {}
@@ -692,7 +732,9 @@ class SimilarityAnalyzer:
             comprehensive_score += score * self.weights[dimension]
         
         # 计算每日相似度时间序列
-        daily_similarity_data = self.calculate_daily_similarity(stock_data, gold_data)
+        daily_similarity_data = self.calculate_daily_similarity(
+            stock_data, gold_data, window_size, ma_windows, move_day, data_missing_handling
+        )
         
         # 生成分析报告
         analysis_report = {
@@ -713,7 +755,8 @@ class SimilarityAnalyzer:
         
         return analysis_report
     
-    def calculate_daily_similarity(self, stock_data, gold_data, window_size=5, ma_windows=[5, 10, 20]):
+    def calculate_daily_similarity(self, stock_data, gold_data, window_size=5, ma_windows=[5, 10, 20],
+                                 move_day=0, data_missing_handling=1):
         """
         计算每日相似度时间序列
         
@@ -722,6 +765,8 @@ class SimilarityAnalyzer:
             gold_data: 金价数据
             window_size: 滑动窗口大小
             ma_windows: 移动平均线窗口列表，默认[5, 10, 20]
+            move_day: 平移天数，负数左移，正数右移
+            data_missing_handling: 数据缺失处理方式，0=不处理，1=跳过，2=用前一天数据填充
             
         Returns:
             dict: 包含每日相似度数据的字典
@@ -729,7 +774,9 @@ class SimilarityAnalyzer:
         print(f"计算每日相似度，窗口大小: {window_size}")
         
         # 数据预处理
-        stock_processed, gold_processed, has_volume_data = self.preprocess_data(stock_data, gold_data, ma_windows)
+        stock_processed, gold_processed, has_volume_data = self.preprocess_data(
+            stock_data, gold_data, ma_windows, move_day, data_missing_handling
+        )
         
         # 确保数据长度一致
         min_length = min(len(stock_processed), len(gold_processed))
@@ -859,69 +906,94 @@ class SimilarityAnalyzer:
             return "低度相似 - 两条K线走势相似性较低"
         else:
             return "几乎不相似 - 两条K线走势差异很大"
-
-
-# 测试函数
-def test_similarity_analyzer():
-    """测试相似度分析器"""
-    print("🧪 开始测试相似度分析器...")
     
-    # 创建测试数据
-    dates = pd.date_range('2024-01-01', periods=30, freq='D')
-    
-    # 模拟股票数据
-    stock_data = pd.DataFrame({
-        '日期': dates,
-        '开盘': np.random.uniform(10, 15, 30),
-        '收盘': np.random.uniform(10, 15, 30),
-        '最高': np.random.uniform(12, 18, 30),
-        '最低': np.random.uniform(8, 12, 30),
-        '成交量': np.random.uniform(1000000, 5000000, 30)
-    })
-    stock_data.set_index('日期', inplace=True)
-    
-    # 模拟金价数据
-    gold_data = pd.DataFrame({
-        '日期': dates,
-        '开盘': np.random.uniform(2000, 2100, 30),
-        '收盘': np.random.uniform(2000, 2100, 30),
-        '最高': np.random.uniform(2050, 2150, 30),
-        '最低': np.random.uniform(1950, 2050, 30),
-        '成交量': np.random.uniform(1000, 5000, 30)
-    })
-    gold_data.set_index('日期', inplace=True)
-    
-    # 测试默认权重配置
-    print("\n=== 测试默认权重配置 ===")
-    analyzer1 = SimilarityAnalyzer()
-    result1 = analyzer1.calculate_comprehensive_similarity(stock_data, gold_data)
-    print(f"默认权重配置结果: {result1['comprehensive_score']:.2f}")
-    
-    # 测试自定义权重配置
-    print("\n=== 测试自定义权重配置 ===")
-    analyzer2 = SimilarityAnalyzer(
-        correlation=0.50,  # 50%
-        trend=0.30,        # 30%
-        volatility=0.10,   # 10%
-        pattern=0.05,      # 5%
-        volume=0.05        # 5%
-    )
-    result2 = analyzer2.calculate_comprehensive_similarity(stock_data, gold_data)
-    print(f"自定义权重配置结果: {result2['comprehensive_score']:.2f}")
-    
-    # 测试动态权重更新
-    print("\n=== 测试动态权重更新 ===")
-    analyzer3 = SimilarityAnalyzer()
-    analyzer3.update_weights(correlation=0.40, trend=0.35, volatility=0.15, pattern=0.05, volume=0.05)
-    result3 = analyzer3.calculate_comprehensive_similarity(stock_data, gold_data)
-    print(f"动态更新权重配置结果: {result3['comprehensive_score']:.2f}")
-    
-    # 测试自定义移动平均线窗口
-    print("\n=== 测试自定义移动平均线窗口 ===")
-    analyzer4 = SimilarityAnalyzer()
-    result4 = analyzer4.calculate_comprehensive_similarity(stock_data, gold_data, ma_windows=[3, 7, 15])
-    print(f"自定义MA窗口配置结果: {result4['comprehensive_score']:.2f}")
-    
-    print("\n✅ 所有测试完成!")
-    return result1, result2, result3, result4
+    def create_similarity_chart(self, analysis_result):
+        """创建相似度分析图表数据 - 显示每日相似度折线图"""
+        # 获取分析结果
+        comprehensive_score = analysis_result['comprehensive_score']
+        dimension_scores = analysis_result['dimension_scores']
+        daily_similarity_data = analysis_result.get('daily_similarity', {})
+        
+        # 创建图表
+        fig = go.Figure()
+        
+        # 添加每日相似度折线图
+        if daily_similarity_data and 'dates' in daily_similarity_data and 'similarities' in daily_similarity_data:
+            dates = daily_similarity_data['dates']
+            similarities = daily_similarity_data['similarities']
+            
+            # 确保日期格式正确
+            formatted_dates = []
+            for date in dates:
+                if isinstance(date, str):
+                    formatted_dates.append(date)
+                elif hasattr(date, 'strftime'):
+                    formatted_dates.append(date.strftime('%Y-%m-%d'))
+                else:
+                    formatted_dates.append(str(date))
+            
+            # 添加相似度折线
+            fig.add_trace(go.Scatter(
+                x=formatted_dates,
+                y=similarities,
+                mode='lines+markers',
+                name='每日相似度',
+                line=dict(color='#2E8B57', width=2),
+                marker=dict(size=4, color='#2E8B57'),
+                hovertemplate='<b>日期:</b> %{x}<br><b>相似度:</b> %{y:.2f}%<extra></extra>'
+            ))
+            
+            # 添加平均相似度水平线
+            mean_similarity = daily_similarity_data.get('mean_similarity', np.mean(similarities))
+            fig.add_hline(
+                y=mean_similarity,
+                line_dash="dash",
+                line_color="red",
+                annotation_text=f"平均相似度: {mean_similarity:.2f}%",
+                annotation_position="top right"
+            )
+            
+            # 添加相似度区间背景
+            fig.add_hrect(
+                y0=80, y1=100,
+                fillcolor="green", opacity=0.1,
+                annotation_text="高相似度区间", annotation_position="top left"
+            )
+            fig.add_hrect(
+                y0=60, y1=80,
+                fillcolor="yellow", opacity=0.1,
+                annotation_text="中等相似度区间", annotation_position="top left"
+            )
+            fig.add_hrect(
+                y0=0, y1=60,
+                fillcolor="red", opacity=0.1,
+                annotation_text="低相似度区间", annotation_position="top left"
+            )
+        else:
+            fig.add_annotation(
+                text="没有每日相似度数据",
+                xref="paper", yref="paper",
+                x=0.5, y=0.5, showarrow=False
+            )
+        
+        # 更新布局
+        fig.update_layout(
+            title=f'股票与金价走势相似度分析 - 综合分数: {comprehensive_score:.1f}/100',
+            yaxis_title='相似度 (%)',
+            height=600,
+            showlegend=True,
+            template='plotly_white',
+            hovermode='x unified'
+        )
+        
+        # 设置Y轴范围
+        fig.update_yaxes(range=[0, 100])
+        
+        # 设置X轴格式
+        fig.update_xaxes(
+            tickangle=45,
+            tickformat='%Y-%m-%d'
+        )
+        
+        return fig.to_json()
 

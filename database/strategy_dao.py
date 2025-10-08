@@ -89,7 +89,7 @@ class StrategyDAO:
             
             # 检查记录是否存在
             self.cursor.execute(
-                "SELECT id FROM tool_stock_tools_gold WHERE tool_stock_tools_gold_id = %s",
+                "SELECT tool_stock_tools_gold_id FROM tool_stock_tools_gold WHERE tool_stock_tools_gold_id = %s",
                 (strategy_data.tool_stock_tools_gold_id,)
             )
             existing = self.cursor.fetchone()

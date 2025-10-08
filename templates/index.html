@@ -121,6 +121,26 @@
             margin-left: 10px;
         }
 
+        /* 交易策略参数样式 */
+        .strategy-info {
+            padding: 8px 12px;
+            background: rgba(255, 193, 7, 0.1);
+            border-radius: 5px;
+            border: 1px solid #ffc107;
+        }
+
+        .strategy-info small {
+            color: #856404;
+            font-style: italic;
+        }
+
+        .parameter-description {
+            font-size: 0.9em;
+            color: #666;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
         /* 交易策略模块样式 */
         .trading-strategy {
             background: linear-gradient(135deg, #fff3e0, #fce4ec);
@@ -466,6 +486,7 @@
                             <select id="stockSelect" name="stock_code">
                                 <option value="">正在加载股票列表...</option>
                             </select>
+                            <div class="parameter-description">选择一只股票</div>
                         </div>
                         <div class="form-group">
                             <label for="analysisMonths">分析时间范围</label>
@@ -477,10 +498,12 @@
                                 <option value="12">12个月</option>
                                 <option value="24">24个月</option>
                             </select>
+                            <div class="parameter-description">选择分析的时间范围</div>
                         </div>
                         <div class="form-group">
                             <label for="initInvestment">初始资金 (元)</label>
                             <input type="number" id="initInvestment" name="init_investment" value="10000" min="1000" step="1000">
+                            <div class="parameter-description">建仓的金额</div>
                         </div>
                     </div>
                     
@@ -522,6 +545,7 @@
                             <option value="10">10天</option>
                             <option value="15">15天</option>
                         </select>
+                        <div class="parameter-description">将时间序列数据分割成固定大小的窗口，在每个窗口内计算相似度，窗口越小越敏感</div>
                     </div>
                     <div class="form-group">
                         <label for="maWindow">移动平均线窗口</label>
@@ -530,6 +554,23 @@
                             <option value="10">MA10</option>
                             <option value="20" selected>MA20</option>
                         </select>
+                        <div class="parameter-description">计算多条移动平均线（MA5、MA10、MA20）的相似度，用于趋势分析</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="moveDay">平移天数</label>
+                        <input type="number" id="moveDay" name="move_day" value="1" min="-3" max="3" step="1">
+                        <div class="parameter-description">伦敦金价通常领先国内股市，正数表示用前几天的金价数据，负数表示用后几天的金价数据</div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="dataMissing">数据缺失处理</label>
+                        <select id="dataMissing" name="data_missing">
+                            <option value="0">不处理</option>
+                            <option value="1" selected>跳过</option>
+                            <option value="2">用前一天数据填充</option>
+                        </select>
+                        <div class="parameter-description">处理伦敦金价和A股交易日不匹配的问题，跳过缺失数据或使用前向填充</div>
                     </div>
                 </div>
 
@@ -540,16 +581,19 @@
                         <div class="form-group">
                             <label for="correlationWeight">价格变化相关性权重 (%)</label>
                             <input type="number" id="correlationWeight" name="correlation_weight" value="30" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                            <div class="parameter-description">计算金价和股价日涨跌幅的皮尔逊相关系数，衡量价格变化的同步性</div>
                         </div>
 
                         <div class="form-group">
                             <label for="trendWeight">趋势方向一致性权重 (%)</label>
                             <input type="number" id="trendWeight" name="trend_weight" value="25" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                            <div class="parameter-description">比较移动平均线的斜率方向，衡量金价和股价趋势的一致性</div>
                         </div>
 
                         <div class="form-group">
                             <label for="volatilityWeight">波动性相似度权重 (%)</label>
                             <input type="number" id="volatilityWeight" name="volatility_weight" value="20" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                            <div class="parameter-description">比较价格波动幅度和频率，衡量金价和股价波动性的相似程度</div>
                         </div>
                     </div>
 
@@ -557,11 +601,13 @@
                         <div class="form-group">
                             <label for="patternWeight">价格模式匹配权重 (%)</label>
                             <input type="number" id="patternWeight" name="pattern_weight" value="15" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                            <div class="parameter-description">使用DTW算法计算价格序列相似度，识别金价和股价的价格模式匹配程度</div>
                         </div>
 
                         <div class="form-group">
                             <label for="volumeWeight">成交量关系权重 (%)</label>
                             <input type="number" id="volumeWeight" name="volume_weight" value="10" min="0" max="100" step="5" onchange="updateWeightTotal()">
+                            <div class="parameter-description">分析成交量与价格变化的关系相似度，衡量金价和股价的量价关系一致性</div>
                         </div>
                     </div>
                     
@@ -606,40 +652,53 @@
                         <div class="form-group">
                         <label for="baseInvestment">基础投资金额 (元)</label>
                         <input type="number" id="baseInvestment" name="base_investment" value="10000" min="100" step="100">
+                        <div class="parameter-description">每次买入金额 = 基础金额 × 金价涨幅</div>
                     </div>
                     
                     <div class="form-group">
                         <label for="stopLossRate">止损率 (%)</label>
                             <input type="number" id="stopLossRate" name="stop_loss_rate" value="10" min="1" max="50" step="1">
+                        <div class="parameter-description">当亏损达到此比例时自动卖出</div>
                         </div>
                         
                         <div class="form-group">
                         <label for="maxProfitRate">最大盈利率 (%)</label>
-                            <input type="number" id="maxProfitRate" name="max_profit_rate" value="5" min="1" max="20" step="1">
-                        </div>
-                        
-                        <div class="form-group">
-                        <label for="profitCallbackRate">盈利回调率 (%)</label>
-                            <input type="number" id="profitCallbackRate" name="profit_callback_rate" value="1" min="0.1" max="5" step="0.1">
+                            <input type="number" id="maxProfitRate" name="max_profit_rate" value="50" min="1" max="100" step="1">
+                        <div class="parameter-description">当盈利超过此比例时考虑卖出</div>
                         </div>
                     </div>
-                    
                     <div class="form-row">
                         <div class="form-group">
+                            <label for="profitCallbackRate">盈利回调率 (%)</label>
+                                <input type="number" id="profitCallbackRate" name="profit_callback_rate" value="1" min="0.1" max="5" step="0.1">
+                            <div class="parameter-description">从最大盈利回调到此比例时卖出</div>
+                        </div>
+                        <div class="form-group">
                         <label for="minGoldChange">最小金价涨幅阈值 (%)</label>
-                            <input type="number" id="minGoldChange" name="min_gold_change" value="2" min="0.1" max="10" step="0.1">
+                            <input type="number" id="minGoldChange" name="min_gold_change" value="0.2" min="0.1" max="10" step="0.1">
+                        <div class="parameter-description">只有金价涨幅超过此阈值时才买入</div>
                         </div>
                         
                         <div class="form-group">
                         <label for="minBuyAmount">最小买入金额 (元)</label>
-                            <input type="number" id="minBuyAmount" name="min_buy_amount" value="1000" min="100" max="10000" step="100">
+                            <input type="number" id="minBuyAmount" name="min_buy_amount" value="100" min="100" max="10000" step="100">
+                        <div class="parameter-description">每次买入金额不能小于此值</div>
                         </div>
-                        
+                    </div>
+
+                    <div class="form-row">
                         <div class="form-group">
                         <label for="transactionCostRate">交易成本率 (%)</label>
                             <input type="number" id="transactionCostRate" name="transaction_cost_rate" value="0.1" min="0.01" max="1" step="0.01">
+                        <div class="parameter-description">每次买入和卖出的手续费比例</div>
                         </div>
                         
+                        <div class="form-group">
+                        <label for="maxHoldDays">最大持仓天数</label>
+                            <input type="number" id="maxHoldDays" name="max_hold_days" value="30" min="1" max="365" step="1">
+                        <div class="parameter-description">超过此天数时强制卖出</div>
+                        </div>
+
                         <div class="form-group">
                         <label for="strategyMode">策略模式</label>
                             <select id="strategyMode" name="strategy_mode">
@@ -647,8 +706,8 @@
                                 <option value="improved" selected>改进模式</option>
                             </select>
                         </div>
-            </div>
-
+                    </div>
+                    
                 <!-- 操作按钮 -->
                 <div style="text-align: center; margin: 20px 0;">
                     <button type="button" class="btn btn-strategy" onclick="executeStrategy()">
@@ -710,6 +769,7 @@
                 minGoldChange: parseFloat(getElementById('minGoldChange').value),
                 minBuyAmount: parseFloat(getElementById('minBuyAmount').value),
                 transactionCostRate: parseFloat(getElementById('transactionCostRate').value),
+                maxHoldDays: parseInt(getElementById('maxHoldDays').value),
                 strategyMode: getElementById('strategyMode').value
             };
         }
@@ -1167,7 +1227,9 @@
                     volatility_weight: parseInt(document.getElementById('volatilityWeight').value),
                     pattern_weight: parseInt(document.getElementById('patternWeight').value),
                     volume_weight: parseInt(document.getElementById('volumeWeight').value),
-                    ma_window: parseInt(document.getElementById('maWindow').value)
+                    ma_window: parseInt(document.getElementById('maWindow').value),
+                    move_day: parseInt(document.getElementById('moveDay').value),
+                    data_missing: parseInt(document.getElementById('dataMissing').value)
                 };
                 
                 console.log('相似度分析参数:', similarityParams);
@@ -1274,7 +1336,8 @@
                     strategy_mode: formData.strategyMode,
                     min_gold_change: formData.minGoldChange / 100, // 转换为小数
                     min_buy_amount: formData.minBuyAmount,
-                    transaction_cost_rate: formData.transactionCostRate / 100 // 转换为小数
+                    transaction_cost_rate: formData.transactionCostRate / 100, // 转换为小数
+                    max_hold_days: formData.maxHoldDays
                 };
                 
                 console.log('策略参数:', strategyParams);

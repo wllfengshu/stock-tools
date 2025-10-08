@@ -15,6 +15,11 @@ import time
 sys.path.insert(0, os.path.abspath('./akshare'))
 import akshare as ak
 
+# 添加数据库模块
+sys.path.insert(0, os.path.abspath('./database'))
+from strategy_dao import StrategyDAO
+from table_entity import ToolStockToolsGold
+
 class TradingStrategy:
     """
     策略逻辑：
@@ -26,31 +31,23 @@ class TradingStrategy:
     6. 止损：亏损10%时卖出
     """
     
-    def __init__(self, base_investment=1000, stop_loss_rate=0.10, 
-                 profit_callback_rate=0.01, max_profit_rate=0.5,
-                 min_gold_change=0.002, min_buy_amount=100,
-                 transaction_cost_rate=0.001, max_hold_days=30):
+    def __init__(self):
         """
-        初始化交易策略
+        初始化交易策略 - 使用默认参数，支持后续动态更新
+        """
+        # 默认用户标识
+        self.user_id = 100001
+        self.auth = 'default_user'
         
-        Args:
-            base_investment: 每次投资的基准金额（每次买入金额 = 基础金额 × 金价涨幅）
-            stop_loss_rate: 止损率（当亏损到总成本的（1-止损率）时卖出）
-            profit_callback_rate: 盈利回调率（从最大盈利率回调到（最大盈利率-盈利回调率）时卖出）
-            max_profit_rate: 最大盈利率（当盈利超过最大盈利率时卖出）
-            min_gold_change: 最小金价涨幅阈值（0.2%，只有金价涨幅超过最小金价涨幅阈值时才买入）
-            min_buy_amount: 最小买入金额（每次买入金额不能小于最小买入金额）
-            transaction_cost_rate: 交易成本率（0.1%，每次买入和卖出时需要扣除交易成本）
-            max_hold_days: 最大持仓天数（超过最大持仓天数时卖出）
-        """
-        self.base_investment = base_investment
-        self.stop_loss_rate = stop_loss_rate
-        self.profit_callback_rate = profit_callback_rate
-        self.max_profit_rate = max_profit_rate
-        self.min_gold_change = min_gold_change
-        self.min_buy_amount = min_buy_amount
-        self.transaction_cost_rate = transaction_cost_rate
-        self.max_hold_days = max_hold_days
+        # 默认策略参数
+        self.base_investment = 1000
+        self.stop_loss_rate = 0.10
+        self.profit_callback_rate = 0.01
+        self.max_profit_rate = 0.5
+        self.min_gold_change = 0.002
+        self.min_buy_amount = 100
+        self.transaction_cost_rate = 0.001
+        self.max_hold_days = 30
         
         # 交易记录
         self.trade_history = []
@@ -66,8 +63,8 @@ class TradingStrategy:
         self.history_max_profit = 0  # 历史最大盈利金额
         self.last_total_profit = 0  # 上一次的总盈利
         
-        # 持久化文件路径
-        self.persistence_file = 'strategy_state.json'
+        # 数据库DAO
+        self.dao = StrategyDAO()
         
         # 加载历史状态
         self.load_state()
@@ -85,58 +82,154 @@ class TradingStrategy:
         print(f"  总成本: {self.total_cost:.2f}元")
         print(f"  总持股: {self.total_shares:.2f}股")
     
+    def update_strategy_params(self, user_id=None, auth=None, base_investment=None, 
+                              stop_loss_rate=None, profit_callback_rate=None, 
+                              max_profit_rate=None, min_gold_change=None, 
+                              min_buy_amount=None, transaction_cost_rate=None, 
+                              max_hold_days=None):
+        """
+        动态更新策略参数
+        
+        Args:
+            user_id: 用户ID，对应数据库中的tool_stock_tools_gold_id
+            auth: 用户认证标识，用于数据库查询
+            base_investment: 每次投资的基准金额
+            stop_loss_rate: 止损率
+            profit_callback_rate: 盈利回调率
+            max_profit_rate: 最大盈利率
+            min_gold_change: 最小金价涨幅阈值
+            min_buy_amount: 最小买入金额
+            transaction_cost_rate: 交易成本率
+            max_hold_days: 最大持仓天数
+        """
+        # 更新用户标识
+        if user_id is not None:
+            self.user_id = user_id
+        if auth is not None:
+            self.auth = auth
+        
+        # 更新策略参数
+        if base_investment is not None:
+            self.base_investment = base_investment
+        if stop_loss_rate is not None:
+            self.stop_loss_rate = stop_loss_rate
+        if profit_callback_rate is not None:
+            self.profit_callback_rate = profit_callback_rate
+        if max_profit_rate is not None:
+            self.max_profit_rate = max_profit_rate
+        if min_gold_change is not None:
+            self.min_gold_change = min_gold_change
+        if min_buy_amount is not None:
+            self.min_buy_amount = min_buy_amount
+        if transaction_cost_rate is not None:
+            self.transaction_cost_rate = transaction_cost_rate
+        if max_hold_days is not None:
+            self.max_hold_days = max_hold_days
+        
+        print(f"策略参数已更新:")
+        print(f"  用户ID: {self.user_id}")
+        print(f"  用户认证: {self.auth}")
+        print(f"  基础投资金额: {self.base_investment}元")
+        print(f"  止损率: {self.stop_loss_rate*100}%")
+        print(f"  盈利回调率: {self.profit_callback_rate*100}%")
+        print(f"  最大盈利率: {self.max_profit_rate*100}%")
+        print(f"  最小金价涨幅阈值: {self.min_gold_change*100}%")
+        print(f"  最小买入金额: {self.min_buy_amount}元")
+        print(f"  交易成本率: {self.transaction_cost_rate*100}%")
+        print(f"  最大持仓天数: {self.max_hold_days}天")
+        
+        # 重新加载状态（因为用户可能改变了）
+        self.load_state()
+    
     def load_state(self):
-        """从文件加载策略状态"""
+        """从数据库加载策略状态"""
         try:
-            if os.path.exists(self.persistence_file):
-                with open(self.persistence_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                
+            # 从数据库加载用户信息
+            user_data = self.dao.load_user_info_by_auth(self.auth)
+            
+            if user_data:
                 # 恢复状态
-                self.total_cost = data.get('total_cost', 0)
-                self.total_shares = data.get('total_shares', 0)
-                self.total_investment = data.get('total_investment', 0)
-                self.history_max_profit = data.get('history_max_profit', 0)
-                self.last_total_profit = data.get('last_total_profit', 0)
+                self.total_cost = user_data.total_cost
+                self.total_shares = user_data.total_shares
+                self.history_max_profit = user_data.history_max_profit
+                self.last_total_profit = user_data.last_total_profit
                 
                 # 恢复交易历史
-                self.trade_history = data.get('trade_history', [])
+                self.trade_history = user_data.get_trade_history_list()
                 
                 # 恢复最后交易日期
-                if data.get('last_trade_date'):
-                    self.last_trade_date = datetime.strptime(data['last_trade_date'], '%Y-%m-%d').date()
+                if user_data.last_trade_date:
+                    if isinstance(user_data.last_trade_date, str):
+                        self.last_trade_date = datetime.strptime(user_data.last_trade_date, '%Y-%m-%d').date()
+                    else:
+                        self.last_trade_date = user_data.last_trade_date.date()
                 
-                print(f"[持久化] 成功加载历史状态:")
+                # 恢复持仓信息
+                position_dict = user_data.get_position_dict()
+                if position_dict.get('has_position', False):
+                    self.current_position = position_dict
+                
+                print(f"[数据库] 成功加载历史状态:")
+                print(f"  用户ID: {user_data.tool_stock_tools_gold_id}")
                 print(f"  总成本: {self.total_cost:.2f}元")
                 print(f"  总持股: {self.total_shares:.2f}股")
                 print(f"  历史最大盈利: {self.history_max_profit:.2f}元")
                 print(f"  交易历史: {len(self.trade_history)}条记录")
+                print(f"  最后交易日期: {self.last_trade_date}")
             else:
-                print(f"[持久化] 未找到历史状态文件，使用默认值")
+                print(f"[数据库] 未找到用户数据，使用默认值")
+                print(f"[数据库] 用户认证: {self.auth}")
         except Exception as e:
-            print(f"[持久化] 加载状态失败: {e}")
-            print(f"[持久化] 使用默认值继续运行")
+            print(f"[数据库] 加载状态失败: {e}")
+            print(f"[数据库] 使用默认值继续运行")
+            import traceback
+            traceback.print_exc()
     
     def save_state(self):
-        """保存策略状态到文件"""
+        """保存策略状态到数据库"""
         try:
-            data = {
-                'total_cost': self.total_cost,
-                'total_shares': self.total_shares,
-                'total_investment': self.total_investment,
-                'history_max_profit': self.history_max_profit,
-                'last_total_profit': self.last_total_profit,
-                'trade_history': self.trade_history,
-                'last_trade_date': self.last_trade_date.strftime('%Y-%m-%d') if self.last_trade_date else None,
-                'save_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            }
+            # 创建用户数据对象
+            user_data = ToolStockToolsGold(
+                tool_stock_tools_gold_id=self.user_id,
+                auth=self.auth,
+                total_cost=self.total_cost,
+                total_shares=self.total_shares,
+                history_max_profit=self.history_max_profit,
+                last_total_profit=self.last_total_profit,
+                last_trade_date=self.last_trade_date
+            )
             
-            with open(self.persistence_file, 'w', encoding='utf-8') as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            # 设置持仓信息
+            if self.current_position:
+                user_data.set_position_dict(self.current_position)
+            else:
+                user_data.set_position_dict({
+                    'has_position': self.total_shares > 0,
+                    'buy_price': 0,
+                    'shares': self.total_shares,
+                    'amount': self.total_shares * 0,  # 需要当前价格计算
+                    'current_profit_rate': 0,
+                    'max_profit_rate': 0
+                })
             
-            print(f"[持久化] 状态已保存到 {self.persistence_file}")
+            # 设置交易历史
+            user_data.set_trade_history_list(self.trade_history)
+            
+            # 保存到数据库
+            success = self.dao.save_user_info(user_data)
+            
+            if success:
+                print(f"[数据库] 状态已保存到数据库")
+                print(f"  用户ID: {self.user_id}")
+                print(f"  总成本: {self.total_cost:.2f}元")
+                print(f"  总持股: {self.total_shares:.2f}股")
+                print(f"  历史最大盈利: {self.history_max_profit:.2f}元")
+            else:
+                print(f"[数据库] 保存状态失败")
         except Exception as e:
-            print(f"[持久化] 保存状态失败: {e}")
+            print(f"[数据库] 保存状态失败: {e}")
+            import traceback
+            traceback.print_exc()
     
     def get_gold_price_with_validation(self):
         """获取并验证金价数据"""
@@ -347,10 +440,17 @@ class TradingStrategy:
                 return True, f"盈利回调：从{self.history_max_profit:.2f}元回调到{current_total_profit:.2f}元，缩小{profit_decrease_rate*100:.2f}%"
         
         # 3. 长期持有检查（超过max_hold_days天强制卖出）
-        if hasattr(self.current_position, 'buy_date'):
-            days_held = (datetime.now() - self.current_position['buy_date']).days
-            if days_held > self.max_hold_days:
-                return True, f"长期持有：已持有{days_held}天"
+        if self.current_position and 'buy_date' in self.current_position:
+            try:
+                if isinstance(self.current_position['buy_date'], str):
+                    buy_date = datetime.strptime(self.current_position['buy_date'], '%Y-%m-%d %H:%M:%S')
+                else:
+                    buy_date = self.current_position['buy_date']
+                days_held = (datetime.now() - buy_date).days
+                if days_held > self.max_hold_days:
+                    return True, f"长期持有：已持有{days_held}天"
+            except Exception as e:
+                print(f"计算持仓天数时出错: {e}")
         
         # 4. 大幅盈利检查（盈利超过max_profit_rate%时考虑卖出）
         if current_profit_rate > self.max_profit_rate:
@@ -437,13 +537,15 @@ class TradingStrategy:
                 
                 # 记录当前持仓信息（用于显示）
                 self.current_position = {
+                    'has_position': True,
                     'buy_price': current_stock_price,
                     'shares': shares,
                     'buy_amount': buy_amount,
                     'net_buy_amount': net_buy_amount,
                     'transaction_cost': transaction_cost,
-                    'buy_date': datetime.now(),
-                    'max_profit_rate': 0
+                    'buy_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                    'max_profit_rate': 0,
+                    'current_profit_rate': 0
                 }
                 
                 self.last_trade_date = datetime.now().date()
@@ -456,7 +558,7 @@ class TradingStrategy:
                 print(f"[成功] 执行买入: {shares:.2f}股，金额: {buy_amount:.2f}元，手续费: {transaction_cost:.2f}元")
                 print(f"更新后状态: 总成本={self.total_cost:.2f}元，总持股={self.total_shares:.2f}股")
                 
-                # 保存状态
+                # 保存状态到数据库
                 self.save_state()
                 
             elif should_sell and self.total_shares > 0:
@@ -478,7 +580,7 @@ class TradingStrategy:
                     'total_cost': self.total_cost,
                     'total_profit': total_profit,
                     'total_profit_rate': total_profit_rate,
-                    'sell_date': datetime.now(),
+                    'sell_date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     'sell_reason': sell_reason,
                     'transaction_cost': transaction_cost
                 })
@@ -507,7 +609,7 @@ class TradingStrategy:
                 self.total_cost = 0
                 self.current_position = None
                 
-                # 保存状态
+                # 保存状态到数据库
                 self.save_state()
             
             # 7. 更新持仓状态和盈利信息
@@ -542,8 +644,16 @@ class TradingStrategy:
             traceback.print_exc()
             return {'error': error_msg}
     
-    def get_strategy_status_improved(self):
-        """获取改进的策略状态（基于全局状态）"""
+    def get_strategy_status_improved(self, refresh_from_db=False):
+        """获取改进的策略状态（基于全局状态）
+        
+        Args:
+            refresh_from_db: 是否从数据库重新加载最新状态
+        """
+        # 如果需要从数据库刷新状态
+        if refresh_from_db:
+            self.load_state()
+        
         if self.total_shares <= 0:
             return {
                 'has_position': False,
@@ -587,8 +697,16 @@ class TradingStrategy:
                 'total_shares': self.total_shares
             }
     
-    def get_strategy_summary_improved(self):
-        """获取改进的策略摘要"""
+    def get_strategy_summary_improved(self, refresh_from_db=False):
+        """获取改进的策略摘要
+        
+        Args:
+            refresh_from_db: 是否从数据库重新加载最新状态
+        """
+        # 如果需要从数据库刷新状态
+        if refresh_from_db:
+            self.load_state()
+        
         total_trades = len(self.trade_history)
         total_net_profit = sum([trade.get('total_profit', 0) for trade in self.trade_history])
         total_transaction_cost = sum([trade.get('transaction_cost', 0) for trade in self.trade_history])
@@ -608,67 +726,3 @@ class TradingStrategy:
             'last_trade_date': self.last_trade_date.strftime('%Y-%m-%d') if self.last_trade_date else None
         }
 
-def main():
-    """主函数 - 测试改进版策略"""
-    print("改进版黄金板块量化交易策略测试")
-    print("=" * 60)
-    
-    # 创建改进版策略实例
-    strategy = TradingStrategy(
-        
-    )
-    
-    # 执行策略
-    result = strategy.execute_strategy_improved('002155')
-    
-    if 'error' in result:
-        print(f"[错误] 策略执行失败: {result['error']}")
-    else:
-        print(f"[成功] 策略执行成功")
-        print(f"金价: {result['gold_price']}美元")
-        print(f"金价涨跌: {result['gold_change_rate']*100:.2f}%")
-        print(f"股票价格: {result['stock_price']}元")
-        
-        if result.get('action') == 'BUY':
-            print(f"买入: {result['shares']:.2f}股，金额: {result['buy_amount']:.2f}元")
-            print(f"手续费: {result.get('transaction_cost', 0):.2f}元")
-        elif result.get('action') == 'SELL':
-            print(f"卖出: 净盈利{result['profit']:.2f}元 ({result['profit_rate']*100:.2f}%)")
-            print(f"卖出原因: {result.get('sell_reason', '未知')}")
-            print(f"手续费: {result.get('transaction_cost', 0):.2f}元")
-        else:
-            print("无交易操作")
-    
-    # 获取策略状态
-    status = strategy.get_strategy_status_improved()
-    if status['has_position']:
-        print(f"\n[状态] 当前持仓状态:")
-        print(f"当前价格: {status['current_price']}元")
-        print(f"总持股: {status['total_shares']:.2f}股")
-        print(f"总成本: {status['total_cost']:.2f}元")
-        print(f"持仓市值: {status['current_market_value']:.2f}元")
-        print(f"当前总盈利: {status['current_total_profit']:.2f}元")
-        print(f"当前盈利率: {status['current_profit_rate']*100:.2f}%")
-        print(f"历史最大盈利: {status['history_max_profit']:.2f}元")
-    else:
-        print(f"\n[状态] 当前无持仓")
-        print(f"总成本: {status['total_cost']:.2f}元")
-        print(f"总持股: {status['total_shares']:.2f}股")
-        print(f"历史最大盈利: {status['history_max_profit']:.2f}元")
-    
-    # 获取策略摘要
-    summary = strategy.get_strategy_summary_improved()
-    print(f"\n[统计] 策略摘要:")
-    print(f"总交易次数: {summary['total_trades']}")
-    print(f"总净盈利: {summary['total_net_profit']:.2f}元")
-    print(f"总交易成本: {summary['total_transaction_cost']:.2f}元")
-    print(f"盈利交易: {summary['win_trades']}次")
-    print(f"胜率: {summary['win_rate']:.2f}%")
-    print(f"当前持仓: {'是' if summary['current_position'] else '否'}")
-    print(f"总持股: {summary['total_shares']:.2f}股")
-    print(f"总成本: {summary['total_cost']:.2f}元")
-    print(f"历史最大盈利: {summary['history_max_profit']:.2f}元")
-    print(f"最后交易日期: {summary['last_trade_date']}")
-
-if __name__ == "__main__":
-    main()
