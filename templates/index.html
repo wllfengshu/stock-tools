@@ -709,20 +709,7 @@
                         </div>
                     </div>
                     
-                    <!-- 回测时间范围选择 -->
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="backtestMonths">回测时间范围</label>
-                            <select id="backtestMonths" name="backtest_months">
-                                <option value="1">1个月</option>
-                                <option value="3">3个月</option>
-                                <option value="6" selected>6个月</option>
-                                <option value="12">12个月</option>
-                                <option value="24">24个月</option>
-                            </select>
-                            <div class="parameter-description">选择历史回测的时间范围</div>
-                        </div>
-                    </div>
+                    
                     
                 <!-- 操作按钮 -->
                 <div style="text-align: center; margin: 20px 0;">
@@ -763,7 +750,76 @@
         let currentStatus = null;
         let statusUpdateInterval = null;
         let autoRefreshInterval = null;
-
+        // 认证参数: 从URL中解析 auth 并全局存储
+        const AUTH_TOKEN = (function() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const token = params.get('auth') || '';
+                if (token) {
+                    console.log('🔐 URL auth 检测到:', token);
+                } else {
+                    console.warn('⚠️ 未在URL中发现 auth 参数');
+                    alert('未授权');
+                    return '';
+                }
+                return token;
+            } catch (err) {
+                console.error('解析 auth 参数失败:', err);
+                return '';
+            }
+        })();
+        const IS_AUTHORIZED = !!AUTH_TOKEN;
+        if (!IS_AUTHORIZED) {
+            // 拦截所有请求
+            (function() {
+                const unauthorizedFetch = function() {
+                    return Promise.reject(new Error('Unauthorized: missing auth'));
+                };
+                try { window.fetch = unauthorizedFetch; } catch (e) { console.error(e); }
+            })();
+            // 隐藏并尝试关闭页面
+            document.addEventListener('DOMContentLoaded', function() {
+                try {
+                    const container = document.querySelector('.container');
+                    if (container) container.style.display = 'none';
+                    alert('未授权，页面将关闭');
+                } catch (e) {}
+                try { window.close(); } catch (e) {}
+                setTimeout(function() { try { location.replace('about:blank'); } catch (e) {} }, 0);
+            });
+        }
+        
+        async function validateAuthWithServer() {
+            if (!IS_AUTHORIZED) return false;
+            try {
+                const resp = await fetch(`/api/validate_auth?auth=${encodeURIComponent(AUTH_TOKEN)}`);
+                const result = await resp.json();
+                if (!result.success) {
+                    console.error('auth校验失败:', result.message);
+                    try {
+                        const container = document.querySelector('.container');
+                        if (container) container.style.display = 'none';
+                        alert('未授权: ' + (result.message || '无效auth'));
+                    } catch (e) {}
+                    try { window.close(); } catch (e) {}
+                    setTimeout(function() { try { location.replace('about:blank'); } catch (e) {} }, 0);
+                    return false;
+                }
+                console.log('✅ auth校验通过');
+                return true;
+            } catch (e) {
+                console.error('auth校验接口错误:', e);
+                try {
+                    const container = document.querySelector('.container');
+                    if (container) container.style.display = 'none';
+                    alert('未授权: 校验失败');
+                } catch (err) {}
+                try { window.close(); } catch (err) {}
+                setTimeout(function() { try { location.replace('about:blank'); } catch (err) {} }, 0);
+                return false;
+            }
+        }
+        
         // DOM元素
         let loading, analyzeBtn;
 
@@ -787,7 +843,8 @@
                 transactionCostRate: parseFloat(getElementById('transactionCostRate').value),
                 maxHoldDays: parseInt(getElementById('maxHoldDays').value),
                 strategyMode: getElementById('strategyMode').value,
-                backtestMonths: parseInt(getElementById('backtestMonths').value)
+                // 回测时间范围与分析时间范围保持一致
+                backtestMonths: parseInt(getElementById('analysisMonths').value)
             };
         }
 
@@ -856,27 +913,31 @@
             
             console.log('DOM元素初始化完成');
             
-            // 加载股票列表
-            loadStockList().then(() => {
-                console.log('✅ 股票列表加载完成，开始初始化页面...');
-                
-                // 开始自动刷新
-                startAutoRefresh();
-                
-                // 立即显示基础信息
-                setTimeout(() => {
-                    console.log('🔄 页面初始化，显示基础信息...');
-                    showRealtimeDataModule(); // 强制显示模块
-                    displayBasicInfo(); // 调用不带参数的函数，让它自己获取数据
-                }, 1000);
-            }).catch((error) => {
-                console.error('❌ 股票列表加载失败，使用默认配置:', error);
-                // 即使股票列表加载失败，也继续初始化页面
-                startAutoRefresh();
-                setTimeout(() => {
-                    showRealtimeDataModule();
-                    displayBasicInfo();
-                }, 1000);
+            // 先与后端校验auth，再继续加载页面
+            validateAuthWithServer().then((ok) => {
+                if (!ok) return;
+                // 加载股票列表
+                loadStockList().then(() => {
+                    console.log('✅ 股票列表加载完成，开始初始化页面...');
+                    
+                    // 开始自动刷新
+                    startAutoRefresh();
+                    
+                    // 立即显示基础信息
+                    setTimeout(() => {
+                        console.log('🔄 页面初始化，显示基础信息...');
+                        showRealtimeDataModule(); // 强制显示模块
+                        displayBasicInfo(); // 调用不带参数的函数，让它自己获取数据
+                    }, 1000);
+                }).catch((error) => {
+                    console.error('❌ 股票列表加载失败，使用默认配置:', error);
+                    // 即使股票列表加载失败，也继续初始化页面
+                    startAutoRefresh();
+                    setTimeout(() => {
+                        showRealtimeDataModule();
+                        displayBasicInfo();
+                    }, 1000);
+                });
             });
             
             // 添加股票选择变化监听器
@@ -971,7 +1032,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(data)
+                    body: JSON.stringify({
+                        ...data,
+                        auth: AUTH_TOKEN
+                    })
                 });
 
                 const result = await response.json();
@@ -1126,7 +1190,7 @@
                 }
 
                 console.log('📡 正在请求API...');
-                const response = await fetch(`/api/current_status?stock_code=${formData.stockCode}`);
+                const response = await fetch(`/api/current_status?stock_code=${encodeURIComponent(formData.stockCode)}${AUTH_TOKEN ? `&auth=${encodeURIComponent(AUTH_TOKEN)}` : ''}`);
                 console.log('📡 API响应状态:', response.status);
                 
                 const status = await response.json();
@@ -1268,7 +1332,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(similarityParams)
+                    body: JSON.stringify({
+                        ...similarityParams,
+                        auth: AUTH_TOKEN
+                    })
                 });
 
                 const result = await response.json();
@@ -1365,7 +1432,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(strategyParams)
+                    body: JSON.stringify({
+                        ...strategyParams,
+                        auth: AUTH_TOKEN
+                    })
                 });
 
                 const result = await response.json();
@@ -1422,7 +1492,7 @@
                 const formData = getFormData();
                 const backtestParams = {
                     stock_code: formData.stockCode,
-                    months: formData.backtestMonths, // 使用回测时间范围
+                    months: formData.months, // 使用基础信息模块的分析时间范围
                     base_investment: formData.baseInvestment,
                     stop_loss_rate: formData.stopLossRate / 100, // 转换为小数
                     max_profit_rate: formData.maxProfitRate / 100, // 转换为小数
@@ -1443,7 +1513,10 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(backtestParams)
+                    body: JSON.stringify({
+                        ...backtestParams,
+                        auth: AUTH_TOKEN
+                    })
                 });
 
                 const result = await response.json();
@@ -1513,9 +1586,6 @@
             }
             
             strategyResult.style.display = 'block';
-            
-            // 显示成功消息
-            showSuccess(`历史回测完成！回测期间：${period.start_date} 至 ${period.end_date}`);
         }
 
         // 刷新数据
@@ -1529,7 +1599,7 @@
                     return;
                 }
                 
-                const response = await fetch(`/api/current_status?stock_code=${formData.stockCode}`);
+                const response = await fetch(`/api/current_status?stock_code=${encodeURIComponent(formData.stockCode)}${AUTH_TOKEN ? `&auth=${encodeURIComponent(AUTH_TOKEN)}` : ''}`);
                 const status = await response.json();
                 
                 if (status.error) {
@@ -1595,7 +1665,16 @@
         // 公共的API请求函数
         async function makeApiRequest(url, options = {}) {
             try {
-                const response = await fetch(url, {
+                if (!IS_AUTHORIZED) {
+                    throw new Error('Unauthorized');
+                }
+                // GET 请求统一追加 auth
+                let finalUrl = url;
+                if (AUTH_TOKEN) {
+                    finalUrl += (finalUrl.includes('?') ? '&' : '?') + `auth=${encodeURIComponent(AUTH_TOKEN)}`;
+                }
+                
+                const response = await fetch(finalUrl, {
                     headers: {
                         'Content-Type': 'application/json',
                         ...options.headers

@@ -29,16 +29,17 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+host='localhost'
+user='root'
+password='root'
+database='wisehair'
+port=3306
+
 class StrategyDAO:
     """量化交易策略数据访问对象"""
     
-    def __init__(self, host='localhost', user='root', password='root', database='wisehair', port=3306):
+    def __init__(self):
         """初始化数据库连接参数"""
-        self.host = host
-        self.user = user
-        self.password = password
-        self.database = database
-        self.port = port
         self.connection = None
         self.cursor = None
         
@@ -48,14 +49,14 @@ class StrategyDAO:
         """建立数据库连接"""
         try:
             logger.info("正在连接数据库...")
-            logger.info(f"连接参数: host={self.host}, port={self.port}, user={self.user}, database={self.database}")
+            logger.info(f"连接参数: host={host}, port={port}, user={user}, database={database}")
             
             self.connection = pymysql.connect(
-                host=self.host,
-                port=self.port,
-                user=self.user,
-                password=self.password,
-                database=self.database,
+                host=host,
+                port=port,
+                user=user,
+                password=password,
+                database=database,
                 charset='utf8mb4',
                 cursorclass=pymysql.cursors.DictCursor
             )

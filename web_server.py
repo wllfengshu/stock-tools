@@ -2,26 +2,26 @@
 # -*- coding:utf-8 -*-
 """
 黄金板块交易系统Web服务器
-提供HTML界面进行时间范围查询和股票分析
+提供HTML界面的api定义
 """
 
 from flask import Flask, render_template, request, jsonify, send_file
 
-# 导入系统
-from data_provider import DataProvider
-from similarity_analyzer import SimilarityAnalyzer
-from trading_strategy import TradingStrategy
-
-# 配置参数 - 仅用于内部逻辑，不用于默认值
+# 配置参数
 import math
 from decimal import Decimal
 
 app = Flask(__name__, static_folder='templates', static_url_path='')
 
-# 全局系统实例
+# 导入系统
+from data_provider import DataProvider
+from similarity_analyzer import SimilarityAnalyzer
+from trading_strategy import TradingStrategy
+from common_util import CommonUtil
 data_provider = DataProvider()
 similarity_analyzer = SimilarityAnalyzer()
 trading_strategy = TradingStrategy()
+common_util = CommonUtil()
 
 # 跟踪当前加载的股票代码
 current_loaded_stock = None
@@ -39,11 +39,28 @@ gold_stocks = [
         {"code": "000630", "name": "铜陵有色", "sector": "有色金属"}
     ]
 
-
 @app.route('/')
 def index():
     """主页面"""
     return render_template('index.html')
+
+@app.route('/api/validate_auth')
+def validate_auth():
+    """验证auth参数是否合法"""
+    try:
+        auth = request.args.get('auth') or (request.json.get('auth') if request.is_json and request.json else None)
+        ok, reason = common_util.auth_is_valid(auth)
+        return jsonify({
+            'success': ok,
+            'auth': auth or '',
+            'message': reason
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'auth': '',
+            'message': f'校验失败: {str(e)}'
+        })
 
 @app.route('/api/stock_list')
 def get_stock_list():
@@ -80,13 +97,6 @@ def analyze_stock():
                 'message': '股票名称不能为空'
             })
         
-        # 调用K线图分析器准备数据
-        if not similarity_analyzer.prepare_data(months, stock_code):
-            return jsonify({
-                'success': False,
-                'message': f'无法获取股票{stock_code}({stock_name})的数据，请检查股票代码是否正确或网络连接'
-            })
-        
         # 获取交易历史数据
         trade_points = []
         try:
@@ -96,8 +106,22 @@ def analyze_stock():
         except Exception as e:
             trade_points = []
         
+        # 加载需要的数据
+        stock_data = common_util.get_stock_data(months=months, stock_code=stock_code)
+        gold_data = common_util.get_gold_data(months=months)
+        if stock_data is None or getattr(stock_data, 'empty', True):
+            return jsonify({
+                'success': False,
+                'message': f'无法获取股票{stock_code}数据'
+            })
+        if gold_data is None or getattr(gold_data, 'empty', True):
+            return jsonify({
+                'success': False,
+                'message': '无法获取金价数据'
+            })
+        
         # 创建图表数据 - 包含交易点标识
-        chart_data = data_provider.create_chart_data(similarity_analyzer.stock_data, stock_name, similarity_analyzer.gold_data, trade_points)
+        chart_data = data_provider.create_chart_data(stock_data, stock_name, gold_data, trade_points)
         
         return jsonify({
             'success': True,
@@ -148,24 +172,9 @@ def analyze_similarity():
                 'message': '请选择股票代码'
             })
         
-        # 创建新的相似度分析器实例，使用自定义权重
-        custom_analyzer = SimilarityAnalyzer(
-            correlation=correlation_weight,
-            trend=trend_weight,
-            volatility=volatility_weight,
-            pattern=pattern_weight,
-            volume=volume_weight
-        )
-        
-        # 获取股票数据
-        if not custom_analyzer.prepare_data(months, stock_code):
-            return jsonify({
-                'success': False,
-                'message': f'无法获取股票{stock_code}数据'
-            })
-        
-        stock_data = custom_analyzer.stock_data
-        gold_data = custom_analyzer.gold_data
+        # 从数据提供层获取数据，避免依赖未定义的实例属性
+        stock_data = common_util.get_stock_data(months=months, stock_code=stock_code)
+        gold_data = common_util.get_gold_data(months=months)
         
         if stock_data is None or stock_data.empty:
             return jsonify({
@@ -184,7 +193,7 @@ def analyze_similarity():
         ma_windows = [5, 10, ma_window] if ma_window not in [5, 10] else [5, 10, 20]
         
         # 使用自定义窗口大小计算每日相似度，传入新参数
-        analysis_result = custom_analyzer.calculate_comprehensive_similarity(
+        analysis_result = similarity_analyzer.calculate_comprehensive_similarity(
             stock_data, gold_data, ma_windows, 
             move_day=move_day, data_missing_handling=data_missing, window_size=window_size
         )
@@ -193,7 +202,7 @@ def analyze_similarity():
         # 不需要重复计算每日相似度
         
         # 生成相似度图表数据
-        similarity_chart_data = custom_analyzer.create_similarity_chart(analysis_result)
+        similarity_chart_data = similarity_analyzer.create_similarity_chart(analysis_result)
         
         # 从股票列表中，根据股票代码，获取股票名称
         stock_name = next((stock['name'] for stock in gold_stocks if stock['code'] == stock_code), '未知股票')
@@ -222,23 +231,17 @@ def get_current_status():
     try:
         # 获取请求参数中的股票代码
         stock_code = request.args.get('stock_code')
+        months = request.args.get('months', default=6, type=int)
         
         if not stock_code:
             return jsonify({
                 'error': '请选择股票代码'
             })
+            
+        current_loaded_stock = stock_code
         
-        # 每次都获取最新数据，不使用缓存
-        if data_provider.prepare_data(6, stock_code):
-            # 更新当前加载的股票代码
-            current_loaded_stock = stock_code
-        else:
-            return jsonify({
-                'error': f'无法获取股票{stock_code}数据，请检查股票代码或网络连接'
-            })
-        
-        # 调用数据提供者获取状态
-        status = data_provider.get_current_status()
+        # 调用数据提供者获取状态（传入代码与时间范围，内部懒加载）
+        status = data_provider.get_current_status(stock_code=stock_code, months=months)
         
         if status is None:
             return jsonify({
@@ -438,6 +441,8 @@ def execute_strategy():
 def get_strategy_status():
     """获取策略状态信息"""
     try:
+        stock_code = request.args.get('stock_code')
+
         # 获取用户参数
         if request.method == 'POST':
             data = request.get_json()
@@ -451,8 +456,8 @@ def get_strategy_status():
         trading_strategy.update_strategy_params(user_id=user_id, auth=auth)
         
         # 获取策略状态
-        status = trading_strategy.get_strategy_status_improved(refresh_from_db=True)
-        summary = trading_strategy.get_strategy_summary_improved(refresh_from_db=True)
+        status = trading_strategy.get_strategy_status_improved(refresh_from_db=True, stock_code=stock_code)
+        summary = trading_strategy.get_strategy_summary_improved(refresh_from_db=True, stock_code=stock_code)
         
         return jsonify({
             'success': True,
@@ -537,8 +542,6 @@ def run_backtest():
         # 获取回测参数
         stock_code = data.get('stock_code')
         months = data.get('months', 6)
-        start_date = data.get('start_date')
-        end_date = data.get('end_date')
         
         # 获取策略参数
         base_investment = data.get('base_investment', 10000)
@@ -578,9 +581,7 @@ def run_backtest():
         # 运行回测
         backtest_result = trading_strategy.run_backtest(
             stock_code=stock_code,
-            months=months,
-            start_date=start_date,
-            end_date=end_date
+            months=months
         )
         
         if 'error' in backtest_result:

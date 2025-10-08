@@ -11,12 +11,13 @@ import json
 from datetime import datetime, timedelta
 import time
 import pandas as pd
-import akshare as ak
 
 # 添加数据库模块
 sys.path.insert(0, os.path.abspath('./database'))
 from database.strategy_dao import StrategyDAO
-from database.table_entity import ToolStockToolsGold
+from common_util import CommonUtil
+strategy_dao = StrategyDAO()
+common_util = CommonUtil()
 
 class TradingStrategy:
     """
@@ -227,135 +228,6 @@ class TradingStrategy:
             import traceback
             traceback.print_exc()
     
-    def get_gold_price_with_validation(self):
-        """获取并验证金价数据"""
-        try:
-            print("正在获取国际金价数据...")
-            
-            # 尝试多种方式获取金价数据
-            gold_data = None
-            
-            # 方法1: 实时数据
-            try:
-                print("尝试获取实时金价数据...")
-                gold_data = ak.futures_foreign_commodity_realtime(symbol=['XAU'])
-                if gold_data is not None and not gold_data.empty:
-                    print("[成功] 实时金价数据获取成功")
-                    print(f"实时数据形状: {gold_data.shape}")
-                    print(f"实时数据列名: {gold_data.columns.tolist()}")
-                    print(f"实时数据前几行:\n{gold_data.head()}")
-            except Exception as e:
-                print(f"实时金价数据获取失败: {e}")
-            
-            # 方法2: 历史数据作为备选
-            if gold_data is None or gold_data.empty or len(gold_data) < 2:
-                try:
-                    print("尝试获取历史金价数据...")
-                    # 获取更多历史数据，确保有足够的数据计算涨跌幅
-                    # 使用正确的akshare函数获取历史数据
-                    gold_data = ak.futures_foreign_hist(symbol='XAU')
-                    if gold_data is not None and not gold_data.empty:
-                        print("[成功] 历史金价数据获取成功")
-                        print(f"历史数据形状: {gold_data.shape}")
-                        print(f"历史数据列名: {gold_data.columns.tolist()}")
-                except Exception as e:
-                    print(f"历史金价数据获取失败: {e}")
-            
-            # 方法3: 使用其他金价数据源
-            if gold_data is None or gold_data.empty or len(gold_data) < 2:
-                try:
-                    print("尝试获取其他金价数据源...")
-                    # 尝试获取伦敦金数据
-                    gold_data = ak.futures_foreign_hist(symbol='XAUUSD')
-                    if gold_data is not None and not gold_data.empty:
-                        print("[成功] 伦敦金数据获取成功")
-                except Exception as e:
-                    print(f"伦敦金数据获取失败: {e}")
-            
-            if gold_data is None or gold_data.empty:
-                print("[错误] 所有金价数据获取方式都失败")
-                return None, None
-            
-            print(f"最终获取的金价数据形状: {gold_data.shape}")
-            print(f"数据列名: {gold_data.columns.tolist()}")
-            print(f"数据前几行:\n{gold_data.head()}")
-            
-            # 数据验证和处理
-            if len(gold_data) >= 2:
-                # 有足够的历史数据
-                try:
-                    # 尝试不同的列名
-                    price_columns = ['收盘', 'close', 'Close', 'CLOSE', '价格', 'price']
-                    current_price = None
-                    previous_price = None
-                    
-                    for col in price_columns:
-                        if col in gold_data.columns:
-                            current_price = float(gold_data.iloc[-1][col])
-                            previous_price = float(gold_data.iloc[-2][col])
-                            print(f"使用列名 '{col}' 获取价格数据")
-                            break
-                    
-                    # 如果列名匹配失败，尝试使用索引
-                    if current_price is None:
-                        print("尝试使用索引获取价格数据...")
-                        # 假设价格在第二列（索引1）
-                        current_price = float(gold_data.iloc[-1, 1])
-                        previous_price = float(gold_data.iloc[-2, 1])
-                        print("使用索引1获取价格数据")
-                    
-                    if current_price is not None and previous_price is not None:
-                        print(f"当前金价: {current_price}美元")
-                        print(f"前一日金价: {previous_price}美元")
-                        return current_price, previous_price
-                    else:
-                        print("[错误] 无法从数据中提取价格信息")
-                        return None, None
-                        
-                except Exception as e:
-                    print(f"[错误] 处理金价数据时出错: {e}")
-                    print(f"数据内容: {gold_data.iloc[-2:].to_dict()}")
-                    return None, None
-            else:
-                print(f"[错误] 金价数据不足，只有{len(gold_data)}条记录，需要至少2条")
-                return None, None
-                
-        except Exception as e:
-            print(f"[错误] 获取金价数据失败: {e}")
-            import traceback
-            traceback.print_exc()
-            return None, None
-    
-    def get_stock_price_with_retry(self, stock_code='002155', max_retries=3):
-        """获取股票价格，带重试机制"""
-        for attempt in range(max_retries):
-            try:
-                print(f"正在获取股票{stock_code}价格 (尝试 {attempt + 1}/{max_retries})...")
-                
-                stock_data = ak.stock_zh_a_hist(
-                    symbol=stock_code,
-                    period="daily",
-                    start_date=(datetime.now() - timedelta(days=10)).strftime('%Y%m%d'),
-                    end_date=datetime.now().strftime('%Y%m%d')
-                )
-                
-                if stock_data is not None and not stock_data.empty:
-                    current_price = float(stock_data.iloc[-1]['收盘'])
-                    print(f"[成功] 股票当前价格: {current_price}元")
-                    return current_price
-                else:
-                    print(f"股票数据为空 (尝试 {attempt + 1}/{max_retries})")
-                    
-            except Exception as e:
-                print(f"获取股票价格失败 (尝试 {attempt + 1}/{max_retries}): {e}")
-            
-            if attempt < max_retries - 1:
-                print("等待2秒后重试...")
-                time.sleep(2)
-        
-        print("[错误] 所有重试都失败")
-        return None
-    
     def should_buy_improved(self, gold_change_rate):
         """
         买入判断逻辑
@@ -485,7 +357,18 @@ class TradingStrategy:
                 return {'error': '今天已经交易过，避免频繁交易'}
             
             # 2. 获取并验证金价数据
-            current_gold_price, previous_gold_price = self.get_gold_price_with_validation()
+            gold_data = common_util.get_gold_data()
+            price_columns = ['收盘', 'close', 'Close', 'CLOSE', '价格', 'price']
+            current_gold_price = None
+            previous_gold_price = None
+            
+            for col in price_columns:
+                if col in gold_data.columns:
+                    current_gold_price = float(gold_data.iloc[-1][col])
+                    previous_gold_price = float(gold_data.iloc[-2][col])
+                    print(f"使用列名 '{col}' 获取价格数据")
+                    break
+            
             if current_gold_price is None or previous_gold_price is None:
                 return {'error': '无法获取有效的金价数据'}
             
@@ -493,7 +376,7 @@ class TradingStrategy:
             print(f"金价涨跌幅: {gold_change_rate*100:.2f}%")
             
             # 3. 获取股票价格
-            current_stock_price = self.get_stock_price_with_retry(stock_code)
+            current_stock_price = common_util.get_gold_data(stock_code)
             if current_stock_price is None:
                 return {'error': '无法获取股票数据'}
             
@@ -640,7 +523,7 @@ class TradingStrategy:
             traceback.print_exc()
             return {'error': error_msg}
     
-    def get_strategy_status_improved(self, refresh_from_db=False):
+    def get_strategy_status_improved(self, refresh_from_db=False, stock_code='002155'):
         """获取改进的策略状态（基于全局状态）
         
         Args:
@@ -660,7 +543,7 @@ class TradingStrategy:
             }
         
         try:
-            current_price = self.get_stock_price_with_retry()
+            current_price = common_util.get_gold_data(stock_code, 1)
             if current_price is None:
                 return {
                     'has_position': True,
@@ -693,7 +576,7 @@ class TradingStrategy:
                 'total_shares': self.total_shares
             }
     
-    def get_strategy_summary_improved(self, refresh_from_db=False):
+    def get_strategy_summary_improved(self, refresh_from_db=False, stock_code='002155'):
         """获取改进的策略摘要
         
         Args:
@@ -722,7 +605,7 @@ class TradingStrategy:
             'last_trade_date': self.last_trade_date.strftime('%Y-%m-%d') if self.last_trade_date else None
         }
 
-    def run_backtest(self, stock_code='002155', months=6, start_date=None, end_date=None):
+    def run_backtest(self, stock_code='002155', months=6):
         """
         运行历史回测
         
@@ -743,23 +626,14 @@ class TradingStrategy:
         
         try:
             # 计算回测日期范围
-            if start_date and end_date:
-                start_dt = datetime.strptime(start_date, '%Y-%m-%d')
-                end_dt = datetime.strptime(end_date, '%Y-%m-%d')
-            else:
-                end_dt = datetime.now()
-                start_dt = end_dt - timedelta(days=months * 30)
+            end_dt = datetime.now()
+            start_dt = end_dt - timedelta(days=months * 30)
             
             print(f"回测时间范围: {start_dt.strftime('%Y-%m-%d')} 到 {end_dt.strftime('%Y-%m-%d')}")
             
             # 获取历史数据
             print("正在获取历史股票数据...")
-            stock_data = ak.stock_zh_a_hist(
-                symbol=stock_code,
-                period="daily",
-                start_date=start_dt.strftime('%Y%m%d'),
-                end_date=end_dt.strftime('%Y%m%d')
-            )
+            stock_data = common_util.get_stock_data(stock_code=stock_code, months=months)
             
             if stock_data is None or stock_data.empty:
                 return {'error': '无法获取股票历史数据'}
@@ -768,7 +642,7 @@ class TradingStrategy:
             
             # 获取历史金价数据
             print("正在获取历史金价数据...")
-            gold_data = ak.futures_foreign_hist(symbol='XAU')
+            gold_data = common_util.get_gold_data(months=months)
             
             if gold_data is None or gold_data.empty:
                 return {'error': '无法获取金价历史数据'}

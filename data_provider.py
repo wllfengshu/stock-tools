@@ -17,7 +17,6 @@
 import sys
 import os
 
-import akshare as ak
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -32,6 +31,9 @@ from plotly.subplots import make_subplots
 sys.path.insert(0, os.path.abspath('./database'))
 from database.strategy_dao import StrategyDAO
 from database.table_entity import ToolStockToolsGold
+from common_util import CommonUtil
+strategy_dao = StrategyDAO()
+common_util = CommonUtil()
 
 class DataProvider:
     """
@@ -46,186 +48,12 @@ class DataProvider:
         初始化数据提供者
         """
         self.default_auth = 'abcdefaddd'
-        self.strategy_dao = StrategyDAO()
+        # 懒加载数据容器
+        self.stock_data = None
+        self.gold_data = None
         print("✅ 数据提供者初始化完成")
     
-    def get_stock_data(self, months=6, stock_code='002155'):
-        """
-        获取股票历史数据
-        
-        Args:
-            months (int): 获取数据的月数，默认6个月
-            stock_code (str): 股票代码，默认002155（湖南黄金）
-            
-        Returns:
-            pd.DataFrame: 股票历史数据，包含OHLCV数据
-        """
-        print(f"📊 正在获取股票{stock_code}近{months}个月的历史数据...")
-        
-        # 计算日期范围
-        end_date = datetime.now().strftime('%Y%m%d')
-        start_date = (datetime.now() - timedelta(days=months*30)).strftime('%Y%m%d')
-        
-        try:
-            # 使用akshare获取股票数据
-            stock_data = ak.stock_zh_a_hist(
-                symbol=stock_code,
-                period="daily",
-                start_date=start_date,
-                end_date=end_date,
-                adjust="qfq"  # 前复权
-            )
-            
-            if stock_data.empty:
-                print(f"❌ 未获取到股票{stock_code}的数据")
-                raise Exception(f"无法获取股票{stock_code}的历史数据")
-            
-            # 确保索引是datetime类型
-            if not isinstance(stock_data.index, pd.DatetimeIndex):
-                print(f"⚠️ 股票{stock_code}索引不是DatetimeIndex，尝试转换...")
-                stock_data.index = pd.to_datetime(stock_data.index)
-            
-            # 确保数据按时间正序排列
-            stock_data = stock_data.sort_index(ascending=True)
-            
-            print(f"✅ 成功获取股票{stock_code}的 {len(stock_data)} 条数据")
-            print(f"📈 数据时间范围: {stock_data['日期'].min()} 到 {stock_data['日期'].max()}")
-            return stock_data
-            
-        except Exception as e:
-            print(f"❌ 获取股票{stock_code}数据出错: {e}")
-            raise e
-    
-    def get_gold_data(self, months=6):
-        """
-        获取伦敦金历史数据
-        
-        Args:
-            months (int): 获取数据的月数，默认6个月
-            
-        Returns:
-            pd.DataFrame: 伦敦金历史数据，包含OHLCV格式
-        """
-        print(f"🥇 正在获取伦敦金近{months}个月的历史数据...")
-        
-        try:
-            # 使用伦敦金数据源
-            print("使用伦敦金数据源 (XAU)...")
-            gold_data = ak.futures_foreign_hist(symbol="XAU")
-            
-            if gold_data.empty:
-                print("❌ 未获取到伦敦金数据")
-                return pd.DataFrame()
-            
-            print(f"🔍 原始伦敦金数据列名: {gold_data.columns.tolist()}")
-            print(f"🔍 原始伦敦金数据形状: {gold_data.shape}")
-            print(f"🔍 原始伦敦金数据示例:")
-            print(gold_data.head(3))
-            
-            # 数据预处理 - 适配futures_foreign_hist的数据格式
-            # 该接口返回的是日度数据，需要转换为标准OHLCV格式
-            if '日期' in gold_data.columns:
-                # 将日期转换为日期索引
-                gold_data['日期'] = pd.to_datetime(gold_data['日期'])
-                gold_data = gold_data.set_index('日期')
-            elif 'date' in gold_data.columns:
-                gold_data['date'] = pd.to_datetime(gold_data['date'])
-                gold_data = gold_data.set_index('date')
-            else:
-                # 如果没有日期列，使用索引
-                gold_data.index = pd.to_datetime(gold_data.index)
-            
-            gold_data = gold_data.sort_index(ascending=True)  # 确保按时间正序排列
-            
-            # 获取最近N个月的数据
-            cutoff_date = datetime.now() - timedelta(days=months*30)
-            gold_data = gold_data[gold_data.index >= cutoff_date]
-            
-            # 检查并映射列名到标准OHLCV格式
-            column_mapping = {
-                'open': '开盘',
-                'high': '最高',
-                'low': '最低', 
-                'close': '收盘',
-                'volume': '成交量'
-            }
-            
-            # 应用列名映射
-            for eng_col, chn_col in column_mapping.items():
-                if eng_col in gold_data.columns and chn_col not in gold_data.columns:
-                    gold_data[chn_col] = gold_data[eng_col]
-                    print(f"✅ 映射列 {eng_col} -> {chn_col}")
-            
-            # 确保数据包含OHLCV列
-            required_columns = ['开盘', '最高', '最低', '收盘', '成交量']
-            missing_columns = [col for col in required_columns if col not in gold_data.columns]
-            
-            if missing_columns:
-                print(f"⚠️ 伦敦金数据缺少列: {missing_columns}")
-                print(f"🔍 可用列: {gold_data.columns.tolist()}")
-                # 如果缺少关键列，尝试从其他可能的列名获取
-                alternative_mappings = {
-                    'Open': '开盘',
-                    'High': '最高',
-                    'Low': '最低',
-                    'Close': '收盘',
-                    'Volume': '成交量'
-                }
-                
-                for alt_col, chn_col in alternative_mappings.items():
-                    if alt_col in gold_data.columns and chn_col not in gold_data.columns:
-                        gold_data[chn_col] = gold_data[alt_col]
-                        print(f"✅ 备用映射列 {alt_col} -> {chn_col}")
-            
-            print(f"✅ 成功获取伦敦金 {len(gold_data)} 条数据")
-            if not gold_data.empty:
-                print(f"📈 数据时间范围: {gold_data.index.min()} 到 {gold_data.index.max()}")
-                print(f"📊 最终列名: {gold_data.columns.tolist()}")
-                print(f"📊 最新收盘价: {gold_data['收盘'].iloc[-1] if '收盘' in gold_data.columns else 'N/A'}")
-            return gold_data
-            
-        except Exception as e:
-            print(f"❌ 获取伦敦金数据出错: {e}")
-            import traceback
-            traceback.print_exc()
-            return pd.DataFrame()
-    
-    def prepare_data(self, months=6, stock_code='002155'):
-        """
-        准备数据 - 基础信息模块的数据准备方法
-        
-        Args:
-            months (int): 获取数据的月数
-            stock_code (str): 股票代码
-            
-        Returns:
-            bool: 数据准备是否成功
-        """
-        print(f"🔄 基础信息模块：准备股票{stock_code}的{months}个月数据...")
-        
-        try:
-            # 获取股票数据
-            self.stock_data = self.get_stock_data(months, stock_code)
-            if self.stock_data is None or self.stock_data.empty:
-                print("❌ 股票数据获取失败")
-                return False
-            
-            # 获取金价数据
-            self.gold_data = self.get_gold_data(months)
-            if self.gold_data is None or self.gold_data.empty:
-                print("⚠️ 金价数据获取失败，使用默认值")
-                # 金价数据失败不影响基础信息显示
-            
-            print(f"✅ 基础信息模块数据准备完成")
-            print(f"📊 股票数据: {self.stock_data.shape}")
-            print(f"📊 金价数据: {self.gold_data.shape if self.gold_data is not None else 'None'}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ 基础信息模块数据准备失败: {e}")
-            return False
-    
-    def get_current_status(self):
+    def get_current_status(self, stock_code='002155', months=6):
         """
         获取当前数据状态信息 - 基础信息模块的核心方法
         
@@ -237,6 +65,18 @@ class DataProvider:
         Returns:
             dict: 数据状态信息，包含所有关键指标
         """
+        # 懒加载数据
+        if self.stock_data is None or getattr(self.stock_data, 'empty', True):
+            try:
+                self.stock_data = common_util.get_stock_data(months=months, stock_code=stock_code)
+            except Exception as e:
+                print(f"❌ 加载股票数据失败: {e}")
+        if self.gold_data is None or getattr(self.gold_data, 'empty', True):
+            try:
+                self.gold_data = common_util.get_gold_data(months=months)
+            except Exception as e:
+                print(f"❌ 加载金价数据失败: {e}")
+
         print(f"🔍 获取基础数据状态: stock_data is None={self.stock_data is None}")
         
         if self.stock_data is None or self.stock_data.empty:
@@ -360,8 +200,10 @@ class DataProvider:
             # 系统信息
             'data_points': len(self.stock_data),
             'date_range': {
-                'start': self.stock_data.index.min().strftime('%Y-%m-%d'),
-                'end': self.stock_data.index.max().strftime('%Y-%m-%d')
+                'start': (self.stock_data.index.min().strftime('%Y-%m-%d')
+                          if isinstance(self.stock_data.index.min(), pd.Timestamp) else str(self.stock_data.index.min())),
+                'end': (self.stock_data.index.max().strftime('%Y-%m-%d')
+                        if isinstance(self.stock_data.index.max(), pd.Timestamp) else str(self.stock_data.index.max()))
             },
             
             # 持久化数据
@@ -394,7 +236,7 @@ class DataProvider:
             dict: 策略状态数据
         """
         try:
-            strategy = self.strategy_dao.load_user_info_by_auth(self.default_auth)
+            strategy = strategy_dao.load_user_info_by_auth(self.default_auth)
             if strategy:
                 data = {
                     'total_cost': float(strategy.total_cost),
@@ -449,7 +291,7 @@ class DataProvider:
             strategy.creator = 'system'
             
             # 保存到数据库
-            success = self.strategy_dao.save_user_info(strategy)
+            success = strategy_dao.save_user_info(strategy)
             if success:
                 print(f"💾 状态已保存到数据库: 投资成本={strategy.total_cost}, 持股数={strategy.total_shares}")
             else:

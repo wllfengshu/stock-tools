@@ -5,3 +5,4 @@
 /akshare/.github/workflows/main_dev_check.yml
 /akshare/.github/workflows/release_and_deploy.yml
 /akshare/.github
+/*.log
