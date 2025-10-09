@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>黄金板块量化交易系统</title>
-    <script src="./plotly.min.js" onload="console.log('✅ plotly.min.js 脚本加载完成')" onerror="console.error('❌ plotly.min.js 脚本加载失败')">
-    </script>
+    <link rel="stylesheet" href="./modern-normalize.min.css">
+    <script src="./plotly.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -18,6 +18,7 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
+            -webkit-tap-highlight-color: transparent;
         }
 
         .container {
@@ -37,18 +38,18 @@
         }
 
         .header h1 {
-            font-size: 2.5em;
+            font-size: clamp(1.6rem, 5vw, 2.5rem);
             margin-bottom: 10px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header p {
-            font-size: 1.2em;
+            font-size: clamp(0.95rem, 2.6vw, 1.2rem);
             opacity: 0.9;
         }
 
         .main-content {
-            padding: 40px;
+            padding: clamp(16px, 4vw, 40px);
         }
 
         /* 模块样式 */
@@ -63,7 +64,7 @@
         .module h2 {
             color: #333;
             margin-bottom: 25px;
-            font-size: 1.5em;
+            font-size: clamp(1.1rem, 3.5vw, 1.5rem);
             border-bottom: 3px solid #ff6b6b;
             padding-bottom: 10px;
         }
@@ -165,8 +166,8 @@
 
         .form-row {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 16px;
             margin-bottom: 20px;
         }
 
@@ -177,6 +178,7 @@
             border-radius: 8px;
             font-size: 16px;
             transition: all 0.3s ease;
+            background-color: #fff;
         }
 
         select:focus, input:focus {
@@ -190,15 +192,15 @@
             background: linear-gradient(135deg, #ff6b6b, #ffa500);
             color: white;
             border: none;
-            padding: 15px 30px;
-            border-radius: 8px;
+            padding: 14px 24px;
+            border-radius: 10px;
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.3s ease;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin: 5px;
+            margin: 6px;
         }
 
         .btn:hover {
@@ -275,15 +277,26 @@
             background: white;
             border-radius: 8px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            overflow: hidden;
+            overflow: hidden; /* 防止内容溢出遮挡下方模块 */
             width: 100%;
-            min-height: 800px; /* 增加高度以显示完整的K线图 */
+            min-height: 60vh; /* 更好的移动端占比高度 */
+            padding-bottom: 24px; /* 预留底部空间 */
+            margin-bottom: 28px; /* 与下方内容拉开更大距离 */
+            position: relative;
         }
+
+        /* 进一步为相似度图增加底部间距，防止与后续模块贴近 */
+        #similarityChartSection { margin-bottom: 28px; padding-bottom: 20px; }
 
         #chartContainer, #similarityChartContainer {
             width: 100% !important;
             min-width: 100%;
-            height: 800px !important; /* 固定高度确保完整显示 */
+            /* Fallbacks for widest compatibility: vh -> svh -> dvh */
+            height: 62vh !important;
+            height: 62svh !important;
+            height: 62dvh !important;
+            /* Clamp to avoid too small/too large on extreme screens */
+            height: clamp(320px, 62dvh, 900px) !important;
         }
 
         /* 相似度分析结果 */
@@ -443,21 +456,26 @@
         }
 
         /* 响应式设计 */
-        @media (max-width: 768px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-            
-            .header h1 {
-                font-size: 2em;
-            }
-            
-            .main-content {
-                padding: 20px;
-            }
+        @media (max-width: 1024px) {
+            .container { max-width: 100%; }
+        }
 
-            .data-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        @media (max-width: 768px) {
+            .form-row { grid-template-columns: 1fr; gap: 14px; }
+            .main-content { padding: 16px; }
+            .data-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+            .btn { width: 100%; margin: 6px 0; border-radius: 12px; }
+            .container { border-radius: 0; box-shadow: none; }
+        }
+
+        @media (max-width: 480px) {
+            body { padding: 12px; }
+            .header { padding: 22px; }
+            .module { padding: 18px; }
+            select, input { font-size: 15px; padding: 12px; }
+            #chartContainer, #similarityChartContainer {
+                height: 58vh !important; height: 58svh !important; height: 58dvh !important;
+                height: clamp(300px, 58dvh, 820px) !important;
             }
         }
 
@@ -508,7 +526,7 @@
                     </div>
                     
                 <!-- 操作按钮 -->
-                <div style="text-align: center; margin: 20px 0;">
+                <div style="text-align: center; margin: 20px 0; display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">
                     <button type="button" class="btn" id="analyzeBtn" onclick="analyzeStock()">
                         📈 查看基础信息
                     </button>
@@ -619,7 +637,7 @@
                     </div>
                 </div>
                 
-                <div style="text-align: center; margin: 20px 0;">
+                <div style="text-align: center; margin: 20px 0; display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">
                     <button type="button" class="btn btn-similarity" onclick="analyzeSimilarity()">
                         🔍 走势相似度分析
                     </button>
@@ -712,7 +730,7 @@
                     
                     
                 <!-- 操作按钮 -->
-                <div style="text-align: center; margin: 20px 0;">
+                <div style="text-align: center; margin: 20px 0; display:flex; flex-wrap:wrap; gap:10px; justify-content:center;">
                     <button type="button" class="btn btn-strategy" onclick="executeStrategy()">
                         🚀 执行策略
                     </button>
@@ -729,10 +747,15 @@
                         </div>
                         </div>
 
-                <!-- 策略图表 -->
-                <div class="chart-container" id="strategyChartSection" style="display: none;">
-                    <div id="strategyChartContainer" style="width: 100%; height: 600px;">
-                        <!-- 策略图表将在这里显示 -->
+                <!-- 策略图表（仅两张） -->
+                <div class="chart-container" id="strategyPriceChartSection" style="display: none;">
+                    <div id="strategyPriceChartContainer" style="width: 100%; height: 600px;">
+                        <!-- 股价K线图（带买卖点） -->
+                    </div>
+                </div>
+                <div class="chart-container" id="strategyEquityChartSection" style="display: none;">
+                    <div id="strategyEquityChartContainer" style="width: 100%; height: 600px;">
+                        <!-- 收益曲线图 -->
                     </div>
                 </div>
             </div>
@@ -1251,16 +1274,23 @@
                 // 解析图表数据
                 const data = JSON.parse(chartData);
                 
-                // 调整布局以确保完整显示
+                // 调整布局以确保完整显示（移动端自适应高度）
+                const vv = window.visualViewport;
+                const viewportH = vv ? Math.floor(vv.height) : Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+                const desiredHeight = Math.max(Math.round(viewportH * 0.62), 360); // 以比例为主，像素仅作下限
                 if (data.layout) {
-                    data.layout.height = 800; // 设置固定高度
+                    data.layout.height = desiredHeight;
                     data.layout.autosize = true;
-                    data.layout.margin = {
-                        l: 50,
-                        r: 50,
-                        t: 80,
-                        b: 50
-                    };
+                    // 边距采用容器高度的比例，避免写死像素
+                    const topMargin = Math.round(desiredHeight * 0.08);  // ~8%
+                    const bottomMargin = Math.round(desiredHeight * 0.16); // ~16%
+                    data.layout.margin = { l: 50, r: 50, t: topMargin, b: bottomMargin };
+                    data.layout.xaxis = Object.assign({
+                        automargin: true
+                    }, data.layout.xaxis || {});
+                    data.layout.yaxis = Object.assign({
+                        automargin: true
+                    }, data.layout.yaxis || {});
                 }
                 
                 // 创建Plotly图表
@@ -1275,15 +1305,39 @@
                     console.log('✅ 图表显示成功');
                     
                     // 强制调整大小以确保完整显示
-                    setTimeout(() => {
-                        Plotly.Plots.resize(container);
-                    }, 100);
+                    const relayoutOnce = () => {
+                        try {
+                            const vv2 = window.visualViewport;
+                            const vh = vv2 ? Math.floor(vv2.height) : Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+                            const h = Math.max(Math.round(vh * 0.62), 360);
+                            container.style.height = h + 'px';
+                            const t = Math.round(h * 0.08);
+                            const b = Math.round(h * 0.16);
+                            Plotly.relayout(container, { height: h, 'margin.b': b, 'margin.t': t });
+                            Plotly.Plots.resize(container);
+                        } catch (e) {}
+                    };
+                    setTimeout(relayoutOnce, 120);
+                    setTimeout(relayoutOnce, 400); // 等待浏览器UI稳定后再次调整
                 });
                 
                 // 添加窗口大小变化监听
-                window.addEventListener('resize', function() {
-                    Plotly.Plots.resize(container);
-                });
+                const handleResize = function() {
+                    try {
+                        const vv = window.visualViewport;
+                        const vh = vv ? Math.floor(vv.height) : Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+                        const h = Math.max(Math.round(vh * 0.62), 360);
+                        container.style.height = h + 'px';
+                        const t = Math.round(h * 0.08);
+                        const b = Math.round(h * 0.16);
+                        Plotly.relayout(container, { height: h, 'margin.b': b, 'margin.t': t });
+                        Plotly.Plots.resize(container);
+                    } catch (e) {}
+                };
+                window.addEventListener('resize', handleResize);
+                if (window.visualViewport) {
+                    window.visualViewport.addEventListener('resize', handleResize);
+                }
                 
             } catch (error) {
                 console.error('❌ 图表显示失败:', error);
@@ -1445,6 +1499,7 @@
                     
                 if (result.success) {
                     displayStrategyResult(result);
+                    // 图表仅在历史回测中渲染
                 } else {
                     showError('策略执行失败: ' + result.error);
                 }
@@ -1526,6 +1581,7 @@
                     
                 if (result.success) {
                     displayBacktestResult(result.backtest_result);
+                    renderStrategyCharts(result.backtest_result);
                 } else {
                     showError('回测失败: ' + result.error);
                 }
@@ -1586,6 +1642,112 @@
             }
             
             strategyResult.style.display = 'block';
+        }
+
+        // 渲染策略模块的两张图：K线+买卖点、收益曲线
+        function renderStrategyCharts(payload) {
+            try {
+                // 支持两种来源结构：
+                // 1) 执行结果整体 result 内携带 chart 相关字段
+                // 2) 回测结果 backtest_result 内部携带 charts 或序列数据
+                const charts = payload.charts || {};
+
+                // 优先尝试后端直接提供的序列；否则尝试解析 chart_data(JSON)
+                const priceSeries = charts.price_series || payload.price_series || null;
+                const equitySeries = charts.equity_series || payload.equity_series || null;
+                const trades = charts.trades || payload.trades || [];
+
+                // 辅助：解析 JSON 格式的 chart_data（如果后端仍旧返回）
+                function parseJSONSafe(jsonStr) {
+                    try { return JSON.parse(jsonStr); } catch (e) { return null; }
+                }
+
+                // 1) 价格K线 + 买卖点
+                (function renderPriceWithSignals() {
+                    const sectionId = 'strategyPriceChartSection';
+                    const containerId = 'strategyPriceChartContainer';
+                    const section = document.getElementById(sectionId);
+                    const container = document.getElementById(containerId);
+                    if (!section || !container) return;
+
+                    let dataTraces = [];
+                    let layout = { title: '股价K线（含买卖点）' };
+
+                    if (priceSeries && Array.isArray(priceSeries.ohlc)) {
+                        const ohlc = priceSeries.ohlc; // {time[], open[], high[], low[], close[]}
+                        dataTraces.push({
+                            type: 'candlestick',
+                            x: ohlc.time,
+                            open: ohlc.open,
+                            high: ohlc.high,
+                            low: ohlc.low,
+                            close: ohlc.close,
+                            name: '价格',
+                        });
+                    } else if (payload.chart_data) {
+                        const parsed = parseJSONSafe(payload.chart_data);
+                        if (parsed && parsed.data) {
+                            dataTraces = dataTraces.concat(parsed.data);
+                            layout = Object.assign(layout, parsed.layout || {});
+                        }
+                    }
+
+                    // 买卖点散点
+                    if (Array.isArray(trades) && trades.length > 0) {
+                        const buyPoints = trades.filter(t => t.side === 'buy');
+                        const sellPoints = trades.filter(t => t.side === 'sell');
+                        if (buyPoints.length) {
+                            dataTraces.push({
+                                type: 'scatter', mode: 'markers', name: '买入',
+                                x: buyPoints.map(t => t.time),
+                                y: buyPoints.map(t => t.price),
+                                marker: { color: '#2ecc71', size: 10, symbol: 'triangle-up' }
+                            });
+                        }
+                        if (sellPoints.length) {
+                            dataTraces.push({
+                                type: 'scatter', mode: 'markers', name: '卖出',
+                                x: sellPoints.map(t => t.time),
+                                y: sellPoints.map(t => t.price),
+                                marker: { color: '#e74c3c', size: 10, symbol: 'triangle-down' }
+                            });
+                        }
+                    }
+
+                    // 显示并绘制
+                    section.style.display = 'block';
+                    const chartObj = { data: dataTraces, layout };
+                    displayChart(JSON.stringify(chartObj), containerId, sectionId);
+                })();
+
+                // 2) 收益曲线
+                (function renderEquityCurve() {
+                    const sectionId = 'strategyEquityChartSection';
+                    const containerId = 'strategyEquityChartContainer';
+                    const section = document.getElementById(sectionId);
+                    const container = document.getElementById(containerId);
+                    if (!section || !container) return;
+
+                    let x = [], y = [];
+                    if (equitySeries && Array.isArray(equitySeries.time) && Array.isArray(equitySeries.equity)) {
+                        x = equitySeries.time;
+                        y = equitySeries.equity;
+                    } else if (charts.equity_curve) {
+                        const ec = charts.equity_curve;
+                        x = ec.time || [];
+                        y = ec.value || [];
+                    }
+
+                    const plotData = [{ type: 'scatter', mode: 'lines', name: '收益曲线', x, y, line: { color: '#ff6b6b', width: 2 } }];
+                    const plotLayout = { title: '收益曲线' };
+                    section.style.display = 'block';
+                    const chartObj = { data: plotData, layout: plotLayout };
+                    displayChart(JSON.stringify(chartObj), containerId, sectionId);
+                })();
+
+            } catch (e) {
+                console.error('渲染策略图表失败:', e);
+            }
         }
 
         // 刷新数据

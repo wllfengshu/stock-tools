@@ -590,10 +590,86 @@ def run_backtest():
                 'error': backtest_result['error']
             })
         
-        # 生成收益曲线图表
-        if backtest_result.get('profit_curve'):
-            chart_data = create_backtest_chart(backtest_result['profit_curve'], stock_code)
-            backtest_result['chart_data'] = chart_data
+        # 组装结构化图表数据：价格OHLC、收益曲线、交易点
+        try:
+            profit_curve = backtest_result.get('profit_curve', [])
+            if profit_curve:
+                # 提取回测时间范围
+                start_date = backtest_result.get('backtest_period', {}).get('start_date')
+                end_date = backtest_result.get('backtest_period', {}).get('end_date')
+
+                # 重取一次股票数据（与回测一致的区间）
+                stock_df = common_util.get_stock_data(stock_code=stock_code, months=months)
+                if start_date and end_date and stock_df is not None and not stock_df.empty:
+                    import pandas as pd
+                    try:
+                        stock_df = stock_df.loc[(stock_df.index >= pd.to_datetime(start_date)) & (stock_df.index <= pd.to_datetime(end_date))]
+                    except Exception:
+                        pass
+
+                # 构建OHLC按照profit_curve日期对齐，若当日缺失则跳过
+                dates = []
+                open_list, high_list, low_list, close_list = [], [], [], []
+                for point in profit_curve:
+                    d = point.get('date')
+                    if not d:
+                        continue
+                    dates.append(d)
+                    if stock_df is not None and not stock_df.empty and d in stock_df.index.strftime('%Y-%m-%d').tolist():
+                        # 定位到该日期的行
+                        try:
+                            row = stock_df.loc[pd.to_datetime(d)]
+                        except Exception:
+                            row = None
+                        if row is not None:
+                            open_list.append(float(row.get('开盘', row.get('open', row.get('Open', 0)))))
+                            high_list.append(float(row.get('最高', row.get('high', row.get('High', 0)))))
+                            low_list.append(float(row.get('最低', row.get('low', row.get('Low', 0)))))
+                            close_list.append(float(row.get('收盘', row.get('close', row.get('Close', 0)))))
+                        else:
+                            # 回退到profit_curve提供的收盘价
+                            cp = float(point.get('stock_price', 0))
+                            open_list.append(cp); high_list.append(cp); low_list.append(cp); close_list.append(cp)
+                    else:
+                        cp = float(point.get('stock_price', 0))
+                        open_list.append(cp); high_list.append(cp); low_list.append(cp); close_list.append(cp)
+
+                # 交易点：来自profit_curve.trade_action 与 stock_price
+                trades = []
+                for point in profit_curve:
+                    action = (point.get('trade_action') or '').upper()
+                    if action in ('BUY', 'SELL'):
+                        trades.append({
+                            'time': point.get('date'),
+                            'price': float(point.get('stock_price', 0)),
+                            'side': 'buy' if action == 'BUY' else 'sell'
+                        })
+
+                # 收益曲线
+                equity_time = [p.get('date') for p in profit_curve]
+                equity_value = [float(p.get('market_value', 0)) for p in profit_curve]
+
+                backtest_result.setdefault('charts', {})
+                backtest_result['charts']['price_series'] = {
+                    'ohlc': {
+                        'time': dates,
+                        'open': open_list,
+                        'high': high_list,
+                        'low': low_list,
+                        'close': close_list
+                    }
+                }
+                backtest_result['charts']['equity_series'] = {
+                    'time': equity_time,
+                    'equity': equity_value
+                }
+                backtest_result['charts']['trades'] = trades
+
+                # 仍保留旧的合成图以兼容前端老逻辑
+                chart_data = create_backtest_chart(profit_curve, stock_code)
+                backtest_result['chart_data'] = chart_data
+        except Exception as e:
+            print(f"构建结构化图表数据失败: {e}")
         
         return jsonify({
             'success': True,
