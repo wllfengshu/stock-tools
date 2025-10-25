@@ -341,9 +341,11 @@ class DataProvider:
         except Exception as e:
             return 0
     
-    def create_chart_data(self, data, stock_name, gold_data=None, trade_points=None):
+    def create_chart_data(self, data, gold_data=None, trade_points=None):
         """创建专业图表数据 - 支持双K线图显示"""
         
+        stock_name = ""
+
         # 创建子图 - 如果有伦敦金数据，增加一个子图，增加图表间距
         if gold_data is not None and not gold_data.empty:
             fig = make_subplots(

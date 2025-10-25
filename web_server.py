@@ -82,19 +82,11 @@ def analyze_stock():
         
         # 获取当前配置值
         stock_code = data.get('stock_code')
-        stock_name = data.get('stock_name', '未知股票')
         
         if not stock_code:
             return jsonify({
                 'success': False,
                 'message': '请选择股票代码'
-            })
-        
-        # 检查股票名称是否有效
-        if not stock_name or stock_name == 'undefined' or stock_name == 'null':
-            return jsonify({
-                'success': False,
-                'message': '股票名称不能为空'
             })
         
         # 获取交易历史数据
@@ -121,13 +113,13 @@ def analyze_stock():
             })
         
         # 创建图表数据 - 包含交易点标识
-        chart_data = data_provider.create_chart_data(stock_data, stock_name, gold_data, trade_points)
+        chart_data = data_provider.create_chart_data(stock_data, gold_data, trade_points)
         
         return jsonify({
             'success': True,
             'message': '分析完成',
             'chart_data': chart_data,
-            'stock_name': stock_name,
+            'stock_name': '股票数据',
             'months': months,
             'trade_points': trade_points
         })
