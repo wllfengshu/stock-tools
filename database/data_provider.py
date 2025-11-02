@@ -27,8 +27,11 @@ warnings.filterwarnings('ignore')
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
-# 导入数据库操作类
-sys.path.insert(0, os.path.abspath('./database'))
+# 修正导入路径
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 from database.strategy_dao import StrategyDAO
 from database.table_entity import ToolStockToolsGold
 from common_util import CommonUtil
@@ -167,10 +170,8 @@ class DataProvider:
             cumulative_return = 0
         
         # 计算年化收益率
-        # 从JSON文件获取投资开始日期，如果没有则使用默认值
         last_trade_date = persistent_data.get('last_trade_date', '2025-01-01')
         try:
-            from datetime import datetime
             trade_date = datetime.strptime(last_trade_date, '%Y-%m-%d')
             current_date = datetime.now()
             investment_days = (current_date - trade_date).days
@@ -338,7 +339,7 @@ class DataProvider:
             cumulative_return = self.calculate_cumulative_return(existing_state, current_status)
             # 简化计算，假设6个月数据
             return cumulative_return * 2
-        except Exception as e:
+        except Exception:
             return 0
     
     def create_chart_data(self, data, gold_data=None, trade_points=None):
@@ -401,7 +402,6 @@ class DataProvider:
                 ),
                 row=1, col=1
             )
-        
         if len(data) >= 20:
             ma20 = data['收盘'].rolling(window=20).mean()
             ma20_data = {
@@ -421,12 +421,9 @@ class DataProvider:
         
         # 添加伦敦金K线图
         if gold_data is not None and not gold_data.empty:
-            # 检查必要的列是否存在
             required_columns = ['开盘', '最高', '最低', '收盘']
             missing_columns = [col for col in required_columns if col not in gold_data.columns]
-            
             if not missing_columns:
-                # 将伦敦金数据转换为标准格式
                 gold_kline_data = {
                     'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
                     'open': gold_data['开盘'].tolist(),
@@ -434,8 +431,6 @@ class DataProvider:
                     'low': gold_data['最低'].tolist(),
                     'close': gold_data['收盘'].tolist()
                 }
-                
-                # 添加伦敦金K线图
                 fig.add_trace(go.Candlestick(
                     x=gold_kline_data['date'],
                     open=gold_kline_data['open'],
@@ -445,182 +440,71 @@ class DataProvider:
                     name='伦敦金',
                     increasing_line_color='red',
                     decreasing_line_color='green',
-                    hoverinfo='x+y',
-                    hovertext=[f'日期: {date}<br>开盘: ${open:.2f}<br>最高: ${high:.2f}<br>最低: ${low:.2f}<br>收盘: ${close:.2f}' 
-                              for date, open, high, low, close in zip(
-                                  gold_kline_data['date'],
-                                  gold_kline_data['open'],
-                                  gold_kline_data['high'],
-                                  gold_kline_data['low'],
-                                  gold_kline_data['close']
-                              )]
                 ), row=2, col=1)
-                
-                # 添加伦敦金移动平均线 - MA5
                 if len(gold_data) >= 5:
                     gold_ma5 = gold_data['收盘'].rolling(window=5).mean()
-                    gold_ma5_data = {
-                        'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
-                        'ma5': gold_ma5.tolist()
-                    }
-                    fig.add_trace(
-                        go.Scatter(
-                            x=gold_ma5_data['date'],
-                            y=gold_ma5_data['ma5'],
-                            mode='lines',
-                            name='伦敦金MA5',
-                            line=dict(color='blue', width=2),
-                            hovertemplate='<b>伦敦金MA5</b><br>日期: %{x}<br>价格: $%{y:.2f}<extra></extra>'
-                        ),
-                        row=2, col=1
-                    )
-                
-                # 添加伦敦金移动平均线 - MA20
+                    fig.add_trace(go.Scatter(
+                        x=gold_kline_data['date'],
+                        y=gold_ma5.tolist(),
+                        mode='lines',
+                        name='伦敦金MA5',
+                        line=dict(color='blue', width=2)
+                    ), row=2, col=1)
                 if len(gold_data) >= 20:
                     gold_ma20 = gold_data['收盘'].rolling(window=20).mean()
-                    gold_ma20_data = {
-                        'date': gold_data.index.strftime('%Y-%m-%d').tolist(),
-                        'ma20': gold_ma20.tolist()
-                    }
-                    fig.add_trace(
-                        go.Scatter(
-                            x=gold_ma20_data['date'],
-                            y=gold_ma20_data['ma20'],
-                            mode='lines',
-                            name='伦敦金MA20',
-                            line=dict(color='orange', width=2),
-                            hovertemplate='<b>伦敦金MA20</b><br>日期: %{x}<br>价格: $%{y:.2f}<extra></extra>'
-                        ),
-                        row=2, col=1
-                    )
-        
+                    fig.add_trace(go.Scatter(
+                        x=gold_kline_data['date'],
+                        y=gold_ma20.tolist(),
+                        mode='lines',
+                        name='伦敦金MA20',
+                        line=dict(color='orange', width=2)
+                    ), row=2, col=1)
+
         # 添加交易点标识
         if trade_points and len(trade_points) > 0:
-            # 买入点
-            buy_points = [point for point in trade_points if point.get('action') == 'BUY']
+            buy_points = [p for p in trade_points if p.get('action') == 'BUY']
+            sell_points = [p for p in trade_points if p.get('action') == 'SELL']
             if buy_points:
-                buy_dates = [point['date'] for point in buy_points]
-                buy_prices = [point['price'] for point in buy_points]
-                
                 fig.add_trace(go.Scatter(
-                    x=buy_dates,
-                    y=buy_prices,
+                    x=[p['date'] for p in buy_points],
+                    y=[p['price'] for p in buy_points],
                     mode='markers',
                     name='买入点',
-                    marker=dict(
-                        symbol='triangle-up',
-                        size=15,
-                        color='red',
-                        line=dict(width=2, color='darkred')
-                    ),
-                    hovertemplate='<b>买入点</b><br>日期: %{x}<br>价格: %{y:.2f}元<extra></extra>'
+                    marker=dict(symbol='triangle-up', size=15, color='red', line=dict(width=2, color='darkred'))
                 ), row=1, col=1)
-            
-            # 卖出点
-            sell_points = [point for point in trade_points if point.get('action') == 'SELL']
             if sell_points:
-                sell_dates = [point['date'] for point in sell_points]
-                sell_prices = [point['price'] for point in sell_points]
-                
                 fig.add_trace(go.Scatter(
-                    x=sell_dates,
-                    y=sell_prices,
+                    x=[p['date'] for p in sell_points],
+                    y=[p['price'] for p in sell_points],
                     mode='markers',
                     name='卖出点',
-                    marker=dict(
-                        symbol='triangle-down',
-                        size=15,
-                        color='green',
-                        line=dict(width=2, color='darkgreen')
-                    ),
-                    hovertemplate='<b>卖出点</b><br>日期: %{x}<br>价格: %{y:.2f}元<extra></extra>'
+                    marker=dict(symbol='triangle-down', size=15, color='green', line=dict(width=2, color='darkgreen'))
                 ), row=1, col=1)
         
-        # 添加成交量 - 使用标准格式（上涨红色，下跌绿色）
-        colors = ['red' if close >= open_price else 'green' 
-                 for close, open_price in zip(data['收盘'], data['开盘'])]
-        
-        volume_data = {
-            'date': data.index.strftime('%Y-%m-%d').tolist(),
-            'volume': data['成交量'].tolist(),
-            'colors': colors
-        }
-        
-        # 确定成交量的行号
+        # 成交量
+        colors = ['red' if c >= o else 'green' for c, o in zip(data['收盘'], data['开盘'])]
         volume_row = 3 if (gold_data is not None and not gold_data.empty) else 2
-        
-        fig.add_trace(
-            go.Bar(
-                x=volume_data['date'],
-                y=volume_data['volume'],
-                name='成交量',
-                marker=dict(color=volume_data['colors'], opacity=0.7)
-            ),
-            row=volume_row, col=1
-        )
-        
-        # 更新布局 - 隐藏底部缩略图，增加图表间距
+        fig.add_trace(go.Bar(
+            x=kline_data['date'],
+            y=data['成交量'].tolist(),
+            name='成交量',
+            marker=dict(color=colors, opacity=0.7)
+        ), row=volume_row, col=1)
+
+        # 布局
         if gold_data is not None and not gold_data.empty:
-            # 三子图布局
             fig.update_layout(
                 title=f'{stock_name} & 伦敦金 K线图交易系统',
-                yaxis_title='股票价格 (元)',
-                yaxis2_title='伦敦金价格 (美元)',
-                yaxis3_title='成交量',
                 height=1000,
-                width=None,
                 showlegend=True,
-                template='plotly_white',
-                autosize=True,
-                margin=dict(l=50, r=50, t=80, b=50),
-                # 隐藏底部缩略图
-                xaxis=dict(
-                    type='category',
-                    showgrid=True,
-                    gridwidth=1,
-                    gridcolor='lightgray',
-                    matches=None,
-                    tickformat='%Y-%m-%d',
-                    rangeslider=dict(visible=False)  # 隐藏股票K线图底部缩略图
-                ),
-                xaxis2=dict(
-                    type='category',
-                    showgrid=True,
-                    gridwidth=1,
-                    gridcolor='lightgray',
-                    matches=None,
-                    tickformat='%Y-%m-%d',
-                    rangeslider=dict(visible=False)  # 隐藏伦敦金K线图底部缩略图
-                ),
-                yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
-                yaxis2=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
-                yaxis3=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                template='plotly_white'
             )
         else:
-            # 二子图布局
             fig.update_layout(
                 title=f'{stock_name} K线图交易系统',
-                yaxis_title='价格 (元)',
-                yaxis2_title='成交量',
                 height=800,
-                width=None,
                 showlegend=True,
-                template='plotly_white',
-                autosize=True,
-                margin=dict(l=50, r=50, t=80, b=50),
-                # 隐藏底部缩略图
-                xaxis=dict(
-                    type='category',
-                    showgrid=True,
-                    gridwidth=1,
-                    gridcolor='lightgray',
-                    matches=None,
-                    tickformat='%Y-%m-%d',
-                    rangeslider=dict(visible=False)  # 隐藏底部缩略图
-                ),
-                yaxis=dict(showgrid=True, gridwidth=1, gridcolor='lightgray'),
-                yaxis2=dict(showgrid=True, gridwidth=1, gridcolor='lightgray')
+                template='plotly_white'
             )
-        
-        # 转换为JSON格式
+        fig.update_xaxes(rangeslider=dict(visible=False))
         return fig.to_json()

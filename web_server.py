@@ -14,7 +14,7 @@ from decimal import Decimal
 app = Flask(__name__, static_folder='templates', static_url_path='')
 
 # 导入系统
-from data_provider import DataProvider
+from database.data_provider import DataProvider
 from similarity_analyzer import SimilarityAnalyzer
 from trading_strategy import TradingStrategy
 from common_util import CommonUtil
