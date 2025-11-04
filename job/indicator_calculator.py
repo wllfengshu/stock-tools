@@ -7,7 +7,7 @@ indicator_calculator.py
 输入要求：DataFrame 需包含列 ['最高','最低','收盘']
 扩展方式：新增 calc_xxx 方法并在 calculate_indicators 中注册即可。
 
-学习提示（给初学者）：
+学习提示：
 1. 技术指标都是基于历史价格的数学变换，用来描述当前行情的状态（超买/超卖、趋势强度、转折等）。
 2. 指标本身不保证盈利，只是辅助决策；可以与成交量、形态、基本面结合。
 3. 这里的实现都使用 pandas 的滚动窗口和指数移动平均（EMA）。
@@ -17,6 +17,30 @@ from typing import Dict, Any, List
 import pandas as pd
 import numpy as np
 from job.config import INDICATOR_DEFAULTS
+
+class SignalEntity:
+    """通用技术指标信号实体类，支持扩展和无感适配"""
+    def __init__(self, stock_code: str, stock_name: str, price_info: dict, signals: dict, history: pd.DataFrame = None, extra: dict = None):
+        self.stock_code = stock_code
+        self.stock_name = stock_name
+        self.price_info = price_info  # {'date':..., 'open':..., ...}
+        self.signals = signals        # {'kdj_golden_cross': True, ...}
+        self.history = history        # 原始或压缩历史数据
+        self.extra = extra or {}      # 其他扩展字段（如新闻、政策等）
+
+    def get_signal(self, key):
+        return self.signals.get(key, None)
+
+    def to_dict(self):
+        return {
+            'stock_code': self.stock_code,
+            'stock_name': self.stock_name,
+            'price_info': self.price_info,
+            'signals': self.signals,
+            'history': self.history,
+            'extra': self.extra
+        }
+
 
 class IndicatorCalculator:
     """技术指标计算器
@@ -142,42 +166,47 @@ class IndicatorCalculator:
             out['RSI_OVERSOLD'] = out['RSI_6'] < 20
         return out
 
-    def calculate_indicators(self, df: pd.DataFrame, custom_params: Dict[str, Any] = None) -> Dict[str, pd.DataFrame]:
-        """统一计算所有指标----入口
-        步骤：
-            1) 校验输入 df 是否为空以及是否包含必须列 ['最高','最低','收盘']。
-            2) 复制默认参数字典 INDICATOR_DEFAULTS，若传入 custom_params 则覆盖对应部分。
-            3) 顺序调用 _calc_kdj / _calc_macd / _calc_rsi 并将结果放入字典。
-        参数：
-            df: 含至少 ['最高','最低','收盘'] 列的价格数据（DataFrame）。
-            custom_params: 可选自定义参数，如 {'MACD': {'fast':10,'slow':22}}。
-        返回：
-            dict -> {'KDJ': DataFrame, 'MACD': DataFrame, 'RSI': DataFrame}
-        异常：
-            ValueError: 当 df 为空或缺少必要列时抛出。
-        初学者提示：
-            - 结果字典里的每个 DataFrame 行索引与原始 df 对齐，可以用同一个日期索引融合到主表中。
-        """
+    def calculate_signals(self, stock_code: str, stock_name: str, df: pd.DataFrame, custom_params: Dict[str, Any] = None, history: pd.DataFrame = None, extra: dict = None) -> SignalEntity:
+        """统一计算所有信号并返回SignalEntity"""
         if df is None or df.empty:
             raise ValueError('输入DataFrame为空')
         required = {'最高', '最低', '收盘'}
         if not required.issubset(df.columns):
             raise ValueError(f'缺少必要列: {required - set(df.columns)}')
-        # 复制默认参数，避免直接修改全局配置
         params = {k: v.copy() for k, v in INDICATOR_DEFAULTS.items()}
-        # 应用自定义覆盖
         if custom_params:
             for k, v in custom_params.items():
                 if k in params and isinstance(v, dict):
                     params[k].update(v)
-        # 依次计算并收集结果
-        results: Dict[str, pd.DataFrame] = {}
-        kdj_params = params['KDJ']
-        macd_params = params['MACD']
-        rsi_params = params['RSI']
-        results['KDJ'] = self._calc_kdj(df, **kdj_params)
-        results['MACD'] = self._calc_macd(df, **macd_params)
-        results['RSI'] = self._calc_rsi(df, periods=rsi_params['periods'])
-        return results
+        # 计算所有指标
+        kdj = self._calc_kdj(df, **params['KDJ'])
+        macd = self._calc_macd(df, **params['MACD'])
+        rsi = self._calc_rsi(df, periods=params['RSI']['periods'])
+        # 最新价格信息
+        latest = df.iloc[-1]
+        price_info = {
+            'date': str(latest.get('日期', df.index[-1]) if '日期' in df.columns else df.index[-1]),
+            'open': float(latest.get('开盘', 0)),
+            'high': float(latest.get('最高', 0)),
+            'low': float(latest.get('最低', 0)),
+            'close': float(latest.get('收盘', 0)),
+            'volume': float(latest.get('成交量', 0))
+        }
+        # 动态收集所有信号
+        signals = {}
+        if not kdj.empty and 'KDJ_GOLDEN_CROSS' in kdj.columns:
+            signals['kdj_golden_cross'] = bool(kdj['KDJ_GOLDEN_CROSS'].iloc[-1])
+        if not macd.empty and 'MACD_GOLDEN_CROSS' in macd.columns:
+            signals['macd_golden_cross'] = bool(macd['MACD_GOLDEN_CROSS'].iloc[-1])
+        if not rsi.empty and 'RSI_OVERSOLD' in rsi.columns:
+            signals['rsi_oversold'] = bool(rsi['RSI_OVERSOLD'].iloc[-1])
+        # 可扩展：自动收集所有以 _CROSS/_SIGNAL/_ALERT/_OVERSOLD/_OVERBOUGHT 结尾的布尔信号
+        for df_ind in [kdj, macd, rsi]:
+            for col in df_ind.columns:
+                if col.endswith(('_CROSS', '_SIGNAL', '_ALERT', '_OVERSOLD', '_OVERBOUGHT')) and col.lower() not in signals:
+                    val = df_ind[col].iloc[-1]
+                    if isinstance(val, (bool, np.bool_)) or (isinstance(val, (int, float)) and val in (0, 1)):
+                        signals[col.lower()] = bool(val)
+        return SignalEntity(stock_code, stock_name, price_info, signals, history=history, extra=extra)
 
 __all__ = ["IndicatorCalculator"]

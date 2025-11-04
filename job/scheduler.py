@@ -39,22 +39,19 @@ class Scheduler:
             # 1. 获取历史数据
             df = self.fetcher.fetch_stock_hist(code, months=GLOBAL_CONFIG.months)
 
-            # 2. 计算技术指标
-            indicators = self.calc.calculate_indicators(df)
+            # 2. 计算技术指标并生成SignalEntity（新方法：信号自动适配）
+            signal_entity = self.calc.calculate_signals(code, name, df, history=df)
 
-            # 3. 生成结构化报告
-            report = self.reporter.generate(code, name, df, indicators)
+            # 3. 准备AI所需数据（由ReportGenerator从SignalEntity直接生成，信号无感扩展）
+            ai_data = self.reporter.prepare_ai_data(signal_entity, months=GLOBAL_CONFIG.months)
 
-            # 4. 准备AI所需数据（由ReportGenerator处理所有数据准备工作）
-            ai_data = self.reporter.prepare_ai_data(report, df, months=GLOBAL_CONFIG.months, use_toon=True)
+            # 4. 调用AI（AIClient只负责与AI交互）
+            ai_result = self.ai.call(ai_data, use_ai=False)
 
-            # 5. 调用AI（AIClient只负责与AI交互）
-            ai_result = self.ai.call(ai_data, use_ai=True)
-
-            # 6. 发送消息
+            # 5. 发送消息
             self.sender.send(ai_result, use_push=False)
 
-            return {"code": code, "name": name, "report": report, "ai": ai_result, "success": True}
+            return {"code": code, "name": name, "signal_entity": signal_entity, "ai": ai_result, "success": True}
         except Exception as e:
             print(f"❌ {code} 处理失败: {e}")
             return {"code": code, "name": name, "error": str(e), "success": False}
@@ -74,5 +71,5 @@ if __name__ == '__main__':
     print("🚀 启动调度程序...")
     scheduler = Scheduler()
     # scheduler.run_once_for_stock("601899", "紫金矿业")
-    scheduler.run_once_for_stock("002611", "东方精工")
+    scheduler.run_once_for_stock("300795", "米奥会展")
 

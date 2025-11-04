@@ -13,145 +13,58 @@ import pandas as pd
 from datetime import datetime, timedelta
 import math
 import json  # 新增: 用于 JSON 格式化输出
-
-# 建议压缩标签映射（与 Toon 压缩一致）
-SUGGESTION_COMPRESS_TAGS = {
-    '双金叉': 'DXC',
-    '突破': 'TP',
-    '少量试探': 'SLST',
-    '继续观察': 'GJGC',
-    '共振': 'GZ'
-}
-
-# 信号字段标准名称
-SIGNAL_FIELDS = [
-    'kdj_golden_cross',
-    'macd_golden_cross',
-    'rsi_oversold'
-]
+from job.indicator_calculator import SignalEntity
 
 class ReportGenerator:
     def __init__(self):
         print("✅ ReportGenerator 初始化完成")
 
-    def generate(self, stock_code: str, stock_name: str, ohlcv: pd.DataFrame, indicators: Dict[str, pd.DataFrame]) -> Dict[str, Any]:
-        """生成结构化报告
-        Args:
-            stock_code: 股票代码
-            stock_name: 股票名称
-            ohlcv: OHLCV数据
-            indicators: 指标字典
-        Returns:
-            结构化报告字典
-        """
-        if ohlcv is None or ohlcv.empty:
-            raise ValueError('无有效K线数据')
-        latest = ohlcv.iloc[-1]
-        raw_date = latest.get('日期') if '日期' in ohlcv.columns else ohlcv.index[-1]
-        if isinstance(raw_date, (datetime, pd.Timestamp)):
-            date_str = raw_date.strftime('%Y-%m-%d')
-        else:
-            date_str = str(raw_date)
-        report = {
-            'meta': {
-                'stock_code': stock_code,
-                'stock_name': stock_name,
-                'generate_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            },
-            'price': {
-                'date': date_str,
-                'open': float(latest.get('开盘', 0)),
-                'high': float(latest.get('最高', 0)),
-                'low': float(latest.get('最低', 0)),
-                'close': float(latest.get('收盘', 0)),
-                'volume': float(latest.get('成交量', 0))
-            },
-            'signals': {}
+    def _generate_from_signal(self, signal_entity: SignalEntity) -> Dict[str, Any]:
+        """直接从SignalEntity生成结构化报告，信号自适应"""
+        meta = {
+            'stock_code': signal_entity.stock_code,
+            'stock_name': signal_entity.stock_name,
+            'generate_time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
-        signals = self._extract_signals(indicators)
-        report['signals'] = signals
+        price = signal_entity.price_info
+        signals = signal_entity.signals
+        # 动态提取所有激活信号
         positives = [k for k, v in signals.items() if v]
-        # summary 仅保留事实（数量/列表/各布尔状态），不含结论性文字
-        report['summary'] = {
+        summary = {
             'signal_count': len(positives),
-            'active_signals': positives,
-            'has_kdj_golden_cross': signals.get('kdj_golden_cross', False),
-            'has_macd_golden_cross': signals.get('macd_golden_cross', False),
-            'has_rsi_oversold': signals.get('rsi_oversold', False)
+            'active_signals': positives
         }
-        # 使用 JSON 格式打印
+        report = {
+            'meta': meta,
+            'price': price,
+            'signals': signals,
+            'summary': summary
+        }
+        # 打印JSON
         print("=" * 80)
         print("✅ 生成报告(JSON):")
         try:
             print(json.dumps(report, ensure_ascii=False, indent=2))
         except Exception:
-            # 兜底: 避免无法序列化异常中断
             print(json.dumps(report, ensure_ascii=False, default=str, indent=2))
         return report
 
-    def prepare_ai_data(self, report: Dict[str, Any], hist_df: Optional[pd.DataFrame] = None,
-                       months: int = 6, use_toon: bool = True) -> Dict[str, Any]:
-        """准备AI所需的所有数据
-        职责：
-          1. 压缩历史数据
-          2. 构建提示词（Toon或人类可读格式）
-          3. 构建系统提示词
-        Args:
-            report: 结构化报告
-            hist_df: 历史价格DataFrame
-            months: 压缩历史的月份区间
-            use_toon: True使用紧凑Toon格式，False使用人类可读格式
-        Returns:
-            包含prompt、system_prompt、has_history等的字典
-        """
-        # 压缩历史数据
-        hist_info = self._compress_history(hist_df, months=months) if (use_toon and hist_df is not None) else None
-
-        # 构建提示词
-        if use_toon:
-            prompt = self._build_toon_prompt(report, hist_info)
-        else:
-            prompt = self._build_human_prompt(report)
-
-        # 构建系统提示词
+    def prepare_ai_data(self, signal_entity: SignalEntity, months: int = 6) -> Dict[str, Any]:
+        """直接从SignalEntity准备AI数据，历史数据压缩自适应"""
+        report = self._generate_from_signal(signal_entity)
+        hist_df = signal_entity.history
+        hist_info = self._compress_history(hist_df, months=months)
+        prompt = self._build_toon_prompt(report, hist_info)
+        human_prompt = self._build_human_prompt(report)
+        print("=" * 80)
+        print("可视化提示词" + human_prompt)
         system_prompt = self._build_system_prompt()
-
         return {
             'prompt': prompt,
             'system_prompt': system_prompt,
             'has_history': hist_info is not None,
             'hist_info': hist_info
         }
-
-    def _extract_signals(self, indicators: Dict[str, pd.DataFrame]) -> Dict[str, bool]:
-        """从指标结果中提取标准化信号字典"""
-        signals: Dict[str, bool] = {}
-        kdj = indicators.get('KDJ')
-        if kdj is not None and not kdj.empty and 'KDJ_GOLDEN_CROSS' in kdj.columns:
-            signals['kdj_golden_cross'] = bool(kdj['KDJ_GOLDEN_CROSS'].iloc[-1])
-        macd = indicators.get('MACD')
-        if macd is not None and not macd.empty and 'MACD_GOLDEN_CROSS' in macd.columns:
-            signals['macd_golden_cross'] = bool(macd['MACD_GOLDEN_CROSS'].iloc[-1])
-        rsi = indicators.get('RSI')
-        if rsi is not None and not rsi.empty and 'RSI_OVERSOLD' in rsi.columns:
-            signals['rsi_oversold'] = bool(rsi['RSI_OVERSOLD'].iloc[-1])
-        return signals
-
-    def _build_suggestion(self, active_signal_keys: List[str]) -> str:
-        """根据活跃信号列表生成中文建议文本"""
-        if not active_signal_keys:
-            return '暂无明显多头技术信号，继续观察。'
-        has_kdj = 'kdj_golden_cross' in active_signal_keys
-        has_macd = 'macd_golden_cross' in active_signal_keys
-        has_rsi_oversold = 'rsi_oversold' in active_signal_keys
-        base = '技术信号: ' + ', '.join(active_signal_keys)
-        if has_kdj and has_macd:
-            return base + ' ——双金叉共振，可关注突破机会。'
-        if has_kdj or has_macd:
-            return base + '，建议少量试探。'
-        if has_rsi_oversold:
-            return base + '（超卖反弹警惕）'
-        return base + '（信号较弱，继续观察）'
 
     # 历史序列压缩 -------------------------------------------------
     def _compress_history(self, hist_df: Optional[pd.DataFrame], months: int = 6,
@@ -220,12 +133,12 @@ class ReportGenerator:
 
     # Toon 压缩提示词 -------------------------------------------------
     def _build_toon_prompt(self, report: Dict[str, Any], hist_info: Optional[Dict[str, Any]] = None) -> str:
-        """生成 Toon 紧凑格式提示词
+        """生成 Toon 紧凑格式提示词（动态适配所有信号，无硬编码）
         结构：
             M: 基本信息 (代码/名称)
             P: 价格信息 (日期/开高低收/成交量)
-            S: 技术信号(kdj, macd, rsi => 1/0)
-            SUM: 汇总(信号数/激活列表/压缩建议)
+            S: 技术信号(动态生成所有信号的键值对，值为1/0)
+            SUM: 汇总(信号数/激活列表)
             TS: 历史统计 (len/pts/stride/base/ret/min/max/std/vol)
             SEQ: 压缩历史序列 (整数列表字符串)
         Args:
@@ -239,21 +152,18 @@ class ReportGenerator:
         signals = report.get('signals', {})
         summary = report.get('summary', {})
 
-        kdj = 1 if signals.get('kdj_golden_cross') else 0
-        macd = 1 if signals.get('macd_golden_cross') else 0
-        rsi = 1 if signals.get('rsi_oversold') else 0
+        # 动态生成所有信号的键值对（按字母排序保证稳定性）
+        signal_pairs = [f"{k}={1 if v else 0}" for k, v in sorted(signals.items())]
+        signal_str = ','.join(signal_pairs) if signal_pairs else 'none'
 
         acts = summary.get('active_signals', [])
-        act_str = ','.join(acts) if acts else ''
-
-        # 事实描述：不做策略性建议，仅罗列信号
-        facts = f"signals={act_str}" if act_str else "signals=none"
+        act_str = ','.join(acts) if acts else 'none'
 
         toon = (f"M:c={meta.get('stock_code','')},n={meta.get('stock_name','')}"
                 f";P:d={price.get('date','')},o={price.get('open',0):.2f},h={price.get('high',0):.2f},"
                 f"l={price.get('low',0):.2f},c={price.get('close',0):.2f},v={int(price.get('volume',0))}"
-                f";S:kdj={kdj},macd={macd},rsi={rsi}" 
-                f";SUM:cnt={summary.get('signal_count',0)},{facts}")
+                f";S:{signal_str}" 
+                f";SUM:cnt={summary.get('signal_count',0)},signals={act_str}")
 
         if hist_info:
             toon += (f";TS:len={hist_info['len']},pts={hist_info['points']},stride={hist_info['stride']},"
@@ -269,7 +179,7 @@ class ReportGenerator:
         return toon
 
     def _build_human_prompt(self, report: Dict[str, Any]) -> str:
-        """生成人类可读格式提示词"""
+        """生成人类可读格式提示词（动态适配所有信号）"""
         meta = report.get('meta', {})
         price = report.get('price', {})
         signals = report.get('signals', {})
@@ -285,63 +195,28 @@ class ReportGenerator:
             f"开盘: {price.get('open', 0):.2f}, 最高: {price.get('high', 0):.2f}",
             f"最低: {price.get('low', 0):.2f}, 收盘: {price.get('close', 0):.2f}",
             f"成交量: {price.get('volume', 0):.0f}",
-            f"\n技术信号:",
-            f"  KDJ金叉: {'是' if signals.get('kdj_golden_cross') else '否'}",
-            f"  MACD金叉: {'是' if signals.get('macd_golden_cross') else '否'}",
-            f"  RSI超卖: {'是' if signals.get('rsi_oversold') else '否'}",
-            f"\n{acts_line}"
+            f"\n技术信号:"
         ]
+
+        # 动态遍历所有信号（按字母排序）
+        for signal_name in sorted(signals.keys()):
+            signal_value = signals[signal_name]
+            lines.append(f"  {signal_name}: {'是' if signal_value else '否'}")
+
+        lines.append(f"\n{acts_line}")
 
         return '\n'.join(lines)
 
     def _build_system_prompt(self) -> str:
-        """生成系统提示词——指导模型输出加/减仓、挂单价格与理由的自然语言建议（不再要求 JSON）。"""
+        """生成系统提示词（压缩版，节省token）"""
         return (
-            "你是一名严格的数据驱动的量化交易分析助手。你收到的用户 prompt 中可能包含:"
-            "1) meta: 股票代码/名称/生成时间"
-            "2) price: 最新日价 (date/open/high/low/close/volume)"
-            "3) signals: kdj_golden_cross / macd_golden_cross / rsi_oversold 布尔值"
-            "4) summary: signal_count / active_signals / has_kdj_golden_cross / has_macd_golden_cross / has_rsi_oversold"
-            "5) 历史压缩段(可选): TS(len,points,stride,base,ret,min,max,std,vol) + DS + DATES + SEQ (归一化整数序列)"
-            "任务: 基于这些数据给出当前的仓位操作建议，包括:"
-            "- 决策: 加仓 / 减仓 / 保持 / 观望"
-            "- 加/减仓数量或比例建议: 可用资金百分比或现有仓位调整百分比 (示例: 加仓 30% / 减仓 20%)"
-            "- 挂单价格区间: 给出分批买入或卖出区间 (基于当前 close 及近期波动, 示例: 买入区间 13.80~13.95)"
-            "- 目标价与止损价: 目标价(例如 close 上方某合理百分比), 止损价(近期低点或 close 下方百分比)"
-            "- 理由: 列出基于信号/波动/收益率(ret)/波动率(vol)/历史极值(min/max) 的客观逻辑"
-            "- 风险提示: 可能的失效条件 (如金叉消失 / 波动扩大 / 涨幅透支)"
-            "- 后续观察要点: 例如 成交量变化 / 二次金叉确认 / RSI 状态 / 政策新闻 (若未来出现)"
-            "决策选择指引(仅示例, 需结合真实数据):"
-            "- signal_count = 0 且无金叉 => 观望"
-            "- 仅出现单一金叉 (KDJ 或 MACD) => 小幅加仓 或 保持 (结合波动率)"
-            "- 同时 KDJ 与 MACD 金叉 => 偏积极, 可考虑加仓"
-            "- RSI 超卖单独出现 => 可能反弹, 不盲目重仓"
-            "- ret 接近历史 max 或 vol/std 显著升高 => 减仓或保持, 谨慎追高"
-            "- SEQ 最近快速拉升且波动放大 => 保持/观望"
-            "挂单价格区间参考规则(供你生成合理区间, 不要机械照抄文字):"
-            "- 加仓: 以 close 为锚, 给出略低于 close 的分批吸筹区间 (如 close*(1 - 0.5%~1.5%))"
-            "- 减仓: 以 close 或近期高点为锚, 给出卖出区间 (如 close*(1 + 0.5%~1.5%))"
-            "- 观望/保持: 不给区间或仅提示条件触发价位"
-            "- 止损价: 可参考近期低点或 close*(1 - 3%~5%)"
-            "- 目标价: 可参考近阶段阻力位或 close*(1 + 3%~6%)，避免过度乐观"
-            "输出格式要求(纯中文自然语言, 不要 JSON, 不要前缀解释, 结构清晰):"
-            "决策: <加仓/减仓/保持/观望>"
-            "加减仓建议: <分批或一次性 + 比例/数量说明>"
-            "挂单价格: <买入区间 或 卖出区间>"
-            "目标价: <数值或区间>"
-            "止损价: <数值或区间>"
-            "理由:  1. ...  2. ..."
-            "风险: <列出1-3条>"
-            "后续观察: <列出1-3条>"
-            "注意事项:"
-            "- 提供的建议必须基于输入数据和信号, 避免主观臆断。"
-            "- 必须要准确、可验证，严禁编造数据。"
-            "- 数值可用接近值(保留2位小数), 来源必须是现有字段推导。"
-            "- 若缺少历史(无 has_history 或 SEQ 点数<20) => 明确说明数据不足并降低加仓建议。"
-            "- 若全部信号为 False => 不可直接建议加仓, 需说明原因。"
-            "- 用客观语气, 避免夸张词汇和感叹号, 不输出 JSON。"
-            "- 没有止损逻辑时必须给出默认防守价位。"
-            "现在请基于输入数据生成上述结构的建议。"
+            "量化交易分析助手。输入含meta/price/signals(动态信号字典)/summary/TS历史统计(可选)。\n"
+            "任务:给出仓位建议,含决策(加仓/减仓/保持/观望)/比例/挂单区间/目标价/止损价/理由/风险/观察点。\n"
+            "决策规则:无信号=>观望;单信号=>小幅加仓;多信号=>积极;ret近max或vol高=>减仓;SEQ快速拉升=>观望。\n"
+            "价格参考:加仓=close*(0.985~0.995);减仓=close*(1.005~1.015);止损=close*0.95~0.97;目标=close*1.03~1.06。\n"
+            "输出格式(中文,非JSON):\n"
+            "决策:<选项>\n加减仓:<比例>\n挂单:<区间>\n目标:<值>\n止损:<值>\n理由:1...2...\n风险:<1-3条>\n观察:<1-3条>\n"
+            "要求:基于数据,准确可验证,数值保留2位小数,缺历史或无信号需说明,客观语气。"
         )
 
 __all__ = ['ReportGenerator']

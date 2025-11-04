@@ -15,7 +15,6 @@ import json
 from typing import Dict, Any, Optional
 import requests
 
-
 class AIClient:
     def __init__(self, api_url: Optional[str] = None, api_token: Optional[str] = None,
                  model: Optional[str] = None, timeout: float = 60.0, retries: int = 1):
@@ -38,47 +37,27 @@ class AIClient:
 
     def call(self, ai_data: Dict[str, Any], use_ai: bool = True,
              temperature: float = 0.7, max_tokens: int = 1024) -> Dict[str, Any]:
-        """统一调用入口（始终真实接口调用，若缺少token返回错误）
-        流程：
-          1. 接收ReportGenerator准备好的数据（包含prompt和system_prompt）
-          2. 构建API请求
-          3. 调用远端模型接口
-        Args:
-            ai_data: ReportGenerator.prepare_ai_data() 返回的字典，包含：
-                    - prompt: 用户提示词
-                    - system_prompt: 系统提示词
-                    - has_history: 是否包含历史数据
-            use_ai: True 执行真实模型调用，False 仅返回构造的信息。
-            temperature: 采样温度（控制随机性）。
-            max_tokens: 最大生成token数。
-        Returns:
-            dict：包含 prompt / ai_summary / has_history / error（若失败）等。
+        """
+        统一调用入口，支持ReportGenerator.prepare_ai_data_from_signal()输出
+        ai_data: {'prompt', 'system_prompt', ...}
         """
         prompt = ai_data.get('prompt', '')
         system_prompt = ai_data.get('system_prompt', '')
-
         result: Dict[str, Any] = {
             'prompt': prompt,
-            'has_history': ai_data.get('has_history', False),
             'model': self.model,
             'system_prompt': system_prompt
         }
-
         print("="*80)
-        print(f"🚀 调用 AI 模型: model={self.model}, has_history={result['has_history']}")
+        print(f"🚀 调用 AI 模型: model={self.model}")
         print(result)
-
-        # 缺少token时直接返回错误
         if not self.api_token:
             result['error'] = '缺少 API Token (SILICONFLOW_API_TOKEN)'
             return result
-
         payload = self._build_payload(system_prompt, prompt, temperature, max_tokens)
-
         if use_ai:
             api_response = self._request_api(payload)
             result.update(api_response)
-
         return result
 
     def _build_payload(self, system_prompt: str, user_prompt: str,
@@ -175,4 +154,3 @@ class AIClient:
 
 
 __all__ = ['AIClient']
-
