@@ -71,5 +71,5 @@ if __name__ == '__main__':
     print("🚀 启动调度程序...")
     scheduler = Scheduler()
     # scheduler.run_once_for_stock("601899", "紫金矿业")
-    scheduler.run_once_for_stock("300795", "米奥会展")
+    scheduler.run_once_for_stock("300859", "西域旅游")
 

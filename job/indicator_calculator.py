@@ -92,8 +92,10 @@ class IndicatorCalculator:
         # J 的放大公式（更敏感）
         j = 3 * k - 2 * d
         out = pd.DataFrame({'K': k, 'D': d, 'J': j})
-        # 金叉：K 今天上穿 D (K > D) 且昨天未上穿 (K.shift(1) <= D.shift(1))
-        out['KDJ_GOLDEN_CROSS'] = (out['K'] > out['D']) & (out['K'].shift(1) <= out['D'].shift(1))
+        # 金叉状态：K在D上方（持续状态，选股工具通常指这个）
+        out['KDJ_GOLDEN_CROSS'] = out['K'] > out['D']
+        # 金叉事件：K今天上穿D（刚发生的事件）
+        out['KDJ_GOLDEN_CROSS_EVENT'] = (out['K'] > out['D']) & (out['K'].shift(1) <= out['D'].shift(1))
         return out
 
     def _calc_macd(self, df: pd.DataFrame, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
@@ -126,8 +128,10 @@ class IndicatorCalculator:
         # 柱状图放大 (常规 *2 用于直观显示力度)
         macd = (dif - dea) * 2
         out = pd.DataFrame({'DIF': dif, 'DEA': dea, 'MACD': macd})
-        # 金叉判定
-        out['MACD_GOLDEN_CROSS'] = (out['DIF'] > out['DEA']) & (out['DIF'].shift(1) <= out['DEA'].shift(1))
+        # 金叉状态：DIF在DEA上方（持续状态，选股工具通常指这个）
+        out['MACD_GOLDEN_CROSS'] = out['DIF'] > out['DEA']
+        # 金叉事件：DIF今天上穿DEA（刚发生的事件）
+        out['MACD_GOLDEN_CROSS_EVENT'] = (out['DIF'] > out['DEA']) & (out['DIF'].shift(1) <= out['DEA'].shift(1))
         return out
 
     def _calc_rsi(self, df: pd.DataFrame, periods: List[int]) -> pd.DataFrame:
